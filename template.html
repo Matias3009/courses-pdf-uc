@@ -59,10 +59,42 @@ div.vis-tooltip{max-width:340px;white-space:normal;background:var(--panel);color
 .tip .tpre{font-size:12px;color:var(--muted)}
 #net{position:absolute;inset:0}
 #empty{position:absolute;inset:0;display:none;align-items:center;justify-content:center;color:var(--muted)}
-@media (max-width:760px){body{grid-template-columns:1fr;grid-template-rows:auto 70vh;height:auto}}
+#topbar,#sheet,#scrim{display:none}
+/* ---------- mobile: full-screen map, menu drawer, bottom sheet for course info */
+@media (max-width:760px){
+  body{display:block;height:100dvh;overflow:hidden}
+  #topbar{display:flex;align-items:center;gap:8px;height:52px;padding:0 12px;background:var(--panel);border-bottom:1px solid var(--border);position:relative;z-index:6}
+  #topbar b{font-size:15px;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  #topbar button{padding:8px 12px;font-size:14px}
+  aside{position:fixed;top:0;left:0;bottom:0;width:min(88vw,360px);z-index:20;transform:translateX(-102%);transition:transform .2s ease;box-shadow:0 0 30px rgba(0,0,0,.25);padding-top:12px}
+  body.menu aside{transform:none}
+  #scrim{position:fixed;inset:0;background:rgba(0,0,0,.35);z-index:15}
+  body.menu #scrim{display:block}
+  aside #info, aside .legend .hint-desktop{display:none}
+  main{height:calc(100dvh - 52px)}
+  select,input,button{font-size:16px}  /* avoids iOS zoom on focus */
+  #course{height:auto}
+  #sheet{display:block;position:fixed;left:0;right:0;bottom:0;z-index:12;background:var(--panel);border-top:1px solid var(--border);
+    border-radius:16px 16px 0 0;box-shadow:0 -8px 30px rgba(0,0,0,.2);max-height:55dvh;overflow:auto;padding:10px 16px 18px;
+    transform:translateY(105%);transition:transform .2s ease}
+  #sheet.open{transform:none}
+  #sheet .grab{width:40px;height:4px;border-radius:2px;background:var(--border);margin:0 auto 8px}
+  #sheet .acts{display:flex;gap:8px;margin:8px 0}
+  #sheet .acts button{flex:1;padding:10px;font-weight:600}
+  #sheet h2{font-size:16px;margin:0 0 4px}
+  #sheet dt{color:var(--muted);font-size:11px;text-transform:uppercase;margin-top:8px}
+  #sheet dd{margin:2px 0 0}
+  #sheet a{color:var(--req)}
+  #cmp{inset:0;border-radius:0;padding:14px 12px}
+  #cmp .scroll{overflow-x:auto}
+  #cmp table{min-width:720px}
+  #cmpClose{right:10px;top:10px}
+}
 </style>
 </head>
 <body>
+<div id="topbar"><button id="menuBtn" aria-label="Opciones">☰ Opciones</button><b>Árbol de Prerrequisitos UC</b><button id="cmpBtn2" aria-label="Comparar">📊</button></div>
+<div id="scrim"></div>
 <aside>
   <h1>Árbol de Prerrequisitos UC</h1>
   <label for="major">Major / Track</label>
@@ -108,6 +140,7 @@ div.vis-tooltip{max-width:340px;white-space:normal;background:var(--panel);color
 </aside>
 <main><div id="net"></div><div id="empty">Sin datos para mostrar.</div>
   <div id="cmp"><button id="cmpClose">Cerrar ✕</button><div id="cmpBody"></div></div></main>
+<div id="sheet"><div class="grab"></div><div id="sheetBody"></div></div>
 
 <script>
 const DATA = /*__DATA__*/null;
@@ -116,6 +149,8 @@ const $ = id => document.getElementById(id);
 const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
 const store = {get(k,d){try{return JSON.parse(localStorage.getItem(k))??d}catch(e){return d}},
                set(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}}};
+const mobileMQ = matchMedia('(max-width: 760px)');
+const isMobile = () => mobileMQ.matches;
 let done = new Set(store.get('uc_done', []));
 let assign = store.get('uc_assign', {}) || {};   // course -> section title chosen for its credits
 
@@ -248,17 +283,18 @@ function updateLabels(){
      '<span style="color:var(--muted)">Marca tus cursos aprobados (clic) para ver la mejor opción.</span>');
 }
 function showCompare(){
+  $('sheet').classList.remove('open'); pinned = null;
   const rank = ranking();
   $('cmpBody').innerHTML = `<h2>Comparar majors</h2>
    <p class="note">Para cada major se elige el minor donde más te sirve lo que ya aprobaste. Orden: más créditos aprobados que cuentan;
    empate → menos semestres restantes → más cursos disponibles ahora. Semestres restantes = el mayor entre (créditos que faltan ÷ ${capCr()} cr por semestre) y la cadena de prerrequisitos más larga que te falta (un correquisito no suma semestre).
    Los electivos de Formación General no se pueden marcar aquí, así que el % total nunca llega a 100.</p>
-   <table><thead><tr><th>#</th><th>Major</th><th>Mejor minor</th><th>Total que cuenta</th><th>Plan común</th><th>Major</th><th>Minor</th><th>Semestres restantes (mín.)</th><th>Disponibles ahora</th></tr></thead>
+   <div class="scroll"><table><thead><tr><th>#</th><th>Major</th><th>Mejor minor</th><th>Total que cuenta</th><th>Plan común</th><th>Major</th><th>Minor</th><th>Semestres restantes (mín.)</th><th>Disponibles ahora</th></tr></thead>
    <tbody>${rank.map((x, i) => `<tr data-mk="${x.mk}" data-nk="${x.nk}" class="${i === 0 && x.r.got > 0 ? 'top' : ''}">
      <td>${i === 0 && x.r.got > 0 ? '⭐' : i + 1}</td><td><b>${esc(NAME0[x.mk])}</b></td><td>${x.nk ? esc(NAME0[x.nk]) : '—'}</td>
      <td>${x.r.got}/${x.r.need} cr (${pctTxt(x.r)})<div class="bar"><i style="width:${x.r.pct * 100}%"></i></div></td>
      <td>${x.r.pc.got}/${x.r.pc.need}</td><td>${x.r.mj.got}/${x.r.mj.need}</td><td>${x.r.mn.got}/${x.r.mn.need}</td>
-     <td><b>${x.r.sem}</b><div style="color:var(--muted);font-size:11px">créditos: ${x.r.semCred} · cadena: ${x.r.semChain}</div></td><td>${x.r.avail}</td></tr>`).join('')}</tbody></table>
+     <td><b>${x.r.sem}</b><div style="color:var(--muted);font-size:11px">créditos: ${x.r.semCred} · cadena: ${x.r.semChain}</div></td><td>${x.r.avail}</td></tr>`).join('')}</tbody></table></div>
    <p class="note" style="margin-top:10px">Clic en una fila para abrir ese major con su mejor minor.</p>`;
   $('cmp').style.display = 'block';
   $('cmpBody').querySelectorAll('tbody tr').forEach(tr => tr.onclick = () => {
@@ -438,7 +474,7 @@ function render(){
              border: s === focus ? col.focus : isDone ? col.done : avail ? col.req : col.border,
              hover:{background: isDone ? col.donebg : avail ? col.avail : col.locked, border: col.focus}},
       font:{color: inProg ? col.text : col.muted, size:13},
-      title: tooltip(s, bandOf[nid]?.sec, secsOf[s])
+      title: isMobile() ? undefined : tooltip(s, bandOf[nid]?.sec, secsOf[s])
     });
     if (nid === s && pr[s]) addExpr(s, pr[s]);
   }
@@ -465,6 +501,10 @@ function render(){
     ctx.restore(); });
   network.on('click', p => {
     const id = baseOf(p.nodes[0] || '');
+    if (isMobile()) {                            // phone: a tap opens the course sheet, approving is a button there
+      if (!id || id.startsWith('__')) { pinned = null; $('sheet').classList.remove('open'); highlight(null); return; }
+      pinned = id; highlight(id); showInfo(id); $('sheet').classList.add('open'); return;
+    }
     if (!id) { pinned = null; return; }          // click on empty space: unpin the side panel
     if (id.startsWith('__')) return;
     done.has(id) ? done.delete(id) : done.add(id); store.set('uc_done', [...done]);
@@ -508,7 +548,7 @@ function highlight(id){
 function initialView(pos){
   const pts = Object.values(pos); if (!pts.length) return;
   network.fit();
-  const minScale = 0.8;
+  const minScale = isMobile() ? 0.55 : 0.8;
   if (network.getScale() >= minScale) return;
   const el = $('net'), minX = Math.min(...pts.map(p => p.x)) - BOXW / 2 - 40, minY = Math.min(...pts.map(p => p.y) , ...bands.map(b => b.top)) - 24;
   network.moveTo({scale:minScale, position:{x: minX + el.clientWidth / 2 / minScale, y: minY + el.clientHeight / 2 / minScale}});
@@ -595,9 +635,16 @@ function assignHTML(s){
     <div style="color:var(--muted);font-size:11px;margin-top:3px">Cumple el requisito en todas sus secciones; los créditos se cuentan solo en la elegida.</div>
     ${full ? '<div style="color:var(--half);font-size:12px;margin-top:3px">⚠ Esa sección ya tiene sus créditos completos, así que este curso no suma créditos.</div>' : ''}</dd>`;
 }
+function toggleDone(s){
+  done.has(s) ? done.delete(s) : done.add(s); store.set('uc_done', [...done]);
+  rerender(); if (isMobile()) highlight(s); showInfo(s);
+}
 function showInfo(s){
   const i = C[s] || {};
-  $('info').innerHTML = `${pinned === s ? '<div style="font-size:11px;color:var(--muted);margin-bottom:4px">📌 Fijado · clic en el fondo del mapa para soltar</div>' : ''}<h2>${esc(s)} ${esc(nm(s))}</h2>
+  const target = isMobile() ? $('sheetBody') : $('info');
+  const acts = isMobile() ? `<div class="acts"><button onclick="toggleDone('${s}')" style="${done.has(s) ? '' : 'border-color:var(--done);color:var(--done)'}">${done.has(s) ? '↺ Quitar aprobado' : '✓ Marcar aprobado'}</button>
+    <button onclick="document.getElementById('sheet').classList.remove('open');pinned=null;highlight(null)">Cerrar</button></div>` : '';
+  target.innerHTML = `${acts}${pinned === s && !isMobile() ? '<div style="font-size:11px;color:var(--muted);margin-bottom:4px">📌 Fijado · clic en el fondo del mapa para soltar</div>' : ''}<h2>${esc(s)} ${esc(nm(s))}</h2>
    ${done.has(s) ? '<b style="color:var(--done)">✔ Aprobado</b>' : ''}
    <dl>
     <dt>Créditos</dt><dd>${esc(i.credits ?? '?')}</dd>
@@ -610,7 +657,7 @@ function showInfo(s){
    </dl>
    <p style="margin:8px 0 0"><a href="${DATA.url.replace('{}', encodeURIComponent(s))}" target="_blank" rel="noopener">Catálogo ↗</a>
    · <a href="${DATA.bc_url.replace('{}', encodeURIComponent(s))}" target="_blank" rel="noopener">Buscacursos ↗</a>
-   · <small>clic = aprobar y fijar · clic derecho = fijar · doble clic = enfocar</small></p>`;
+   ${isMobile() ? '' : '· <small>clic = aprobar y fijar · clic derecho = fijar · doble clic = enfocar</small>'}</p>`;
 }
 
 $('major').onchange = $('minor').onchange = () => { firstView = true; fillCourses(); render(); };
@@ -621,7 +668,13 @@ $('clearDone').onclick = () => { if (confirm('¿Borrar todos los cursos aprobado
 $('fit').onclick = () => network && network.fit();
 $('cap').value = store.get('uc_cap', 60);
 $('cap').onchange = () => { store.set('uc_cap', capCr()); render(); if ($('cmp').style.display === 'block') showCompare(); };
-$('cmpBtn').onclick = showCompare;
+$('cmpBtn').onclick = () => { document.body.classList.remove('menu'); showCompare(); };
+$('cmpBtn2').onclick = showCompare;
+$('menuBtn').onclick = () => document.body.classList.toggle('menu');
+$('scrim').onclick = () => document.body.classList.remove('menu');
+// close the drawer after choosing something, so the map is visible again
+for (const id of ['major', 'minor', 'course', 'mode']) $(id).addEventListener('change', () => { if (isMobile()) document.body.classList.remove('menu'); });
+mobileMQ.addEventListener('change', () => { firstView = true; render(); });
 $('cmpClose').onclick = () => $('cmp').style.display = 'none';
 fillCourses(); render();
 </script>

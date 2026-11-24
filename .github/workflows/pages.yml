@@ -1,0 +1,78 @@
+# Builds uc_prereqs.html with the real script (downloads the UC catalog and
+# buscacursos data on GitHub's servers) and publishes it to GitHub Pages.
+name: Publicar página
+
+on:
+  push:
+    branches: [main]
+  schedule:
+    - cron: "17 9 * * 1"   # todos los lunes: refresca los datos del catálogo
+  workflow_dispatch:        # botón "Run workflow" en la pestaña Actions
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Instalar dependencias
+        run: pip install requests beautifulsoup4 pypdf
+
+      # Reutiliza lo descargado en ejecuciones anteriores (más rápido y menos consultas a la UC).
+      - name: Restaurar caché de datos
+        uses: actions/cache@v4
+        with:
+          path: |
+            prereq_cache.json
+            info_cache.json
+          key: uc-data-${{ github.run_id }}
+          restore-keys: uc-data-
+
+      - name: Generar la página
+        run: |
+          EXTRA=""
+          if [ "${{ github.event_name }}" = "schedule" ]; then EXTRA="--refresh"; fi
+          mkdir -p site
+          python uc_prereqs.py --no-open --out site/index.html $EXTRA
+
+      - name: Revisar los datos descargados
+        run: |
+          python - <<'PY'
+          import json
+          d = json.load(open("prereq_cache.json"))
+          bad = [k for k, v in d.items() if "error" in v]
+          print(f"Cursos con prerrequisitos: {len(d) - len(bad)} · con error: {len(bad)}")
+          if bad:
+              print("Errores (primeros 20):", ", ".join(sorted(bad)[:20]))
+          if len(d) == 0 or len(bad) > len(d) / 2:
+              raise SystemExit("La mayoría de las descargas falló; no se publica la página.")
+          PY
+
+      - uses: actions/configure-pages@v5
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

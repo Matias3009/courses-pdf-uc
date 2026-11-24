@@ -9,6 +9,18 @@ Ingeniería de Software, Eléctrica, Robótica, Diseño e Innovación, Biomédic
 y Track Premedicina), Ingeniería Matemática, además de sus minors de profundidad y todos los
 Minors de Amplitud.
 
+## Úsalo sin instalar nada
+
+Página publicada: **https://matias3009.github.io/courses-pdf-uc/**
+
+La genera GitHub con este mismo script (`.github/workflows/pages.yml`) cada vez que se
+actualiza el repositorio y todos los lunes, para refrescar los datos del catálogo. Funciona en
+computador y en celular. Tus cursos aprobados se guardan solo en tu navegador.
+
+**En el celular:** el mapa ocupa la pantalla; *☰ Opciones* abre el menú (major, minor, curso,
+vista); al tocar un curso se abre una ficha abajo con su información y el botón
+*✓ Marcar aprobado*; 📊 abre la comparación de majors.
+
 ## Qué necesitas
 
 - **Python 3.9 o más nuevo**
