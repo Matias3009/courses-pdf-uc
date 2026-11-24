@@ -7,9 +7,9 @@
 <script src="https://unpkg.com/vis-network@9.1.9/standalone/umd/vis-network.min.js"></script>
 <style>
 :root{--bg:#f6f7f9;--panel:#fff;--text:#1d2330;--muted:#667085;--border:#d9dde5;
-  --req:#2f6fdb;--or:#b45309;--orbg:#fdf0dc;--and:#6d28d9;--andbg:#efe7fd;--band:rgba(47,111,219,.045);--bandline:#c3cde0;--avail:#e8f0ff;--done:#1f9d55;--donebg:#dff5e8;--locked:#f1f2f5;--out:#fbfbfc;--focus:#e8590c}
+  --req:#2f6fdb;--or:#b45309;--orbg:#fdf0dc;--and:#6d28d9;--andbg:#efe7fd;--band:rgba(47,111,219,.045);--bandline:#c3cde0;--bandok:rgba(31,157,85,.10);--bandokline:#7cc79b;--avail:#e8f0ff;--done:#1f9d55;--donebg:#dff5e8;--locked:#f1f2f5;--out:#fbfbfc;--focus:#e8590c}
 @media (prefers-color-scheme:dark){:root{--bg:#14161b;--panel:#1d2027;--text:#e6e8ee;--muted:#9aa3b2;--border:#343846;
-  --req:#6d9cff;--or:#f5a524;--orbg:#3a2a12;--and:#b394ff;--andbg:#2c2242;--band:rgba(109,156,255,.06);--bandline:#3a4560;--avail:#22314f;--done:#3fcf7f;--donebg:#173826;--locked:#262a33;--out:#1a1c22;--focus:#ff8a3d}}
+  --req:#6d9cff;--or:#f5a524;--orbg:#3a2a12;--and:#b394ff;--andbg:#2c2242;--band:rgba(109,156,255,.06);--bandline:#3a4560;--bandok:rgba(63,207,127,.10);--bandokline:#2f7a50;--avail:#22314f;--done:#3fcf7f;--donebg:#173826;--locked:#262a33;--out:#1a1c22;--focus:#ff8a3d}}
 *{box-sizing:border-box}
 body{margin:0;font:14px/1.4 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;background:var(--bg);color:var(--text);
   display:grid;grid-template-columns:330px 1fr;height:100vh}
@@ -327,7 +327,7 @@ function render(){
   }
   const col = {req:css('--req'), avail:css('--avail'), done:css('--done'), donebg:css('--donebg'),
                locked:css('--locked'), out:css('--out'), border:css('--border'), text:css('--text'),
-               muted:css('--muted'), focus:css('--focus'), or:css('--or'), orbg:css('--orbg'), and:css('--and'), andbg:css('--andbg'), panel:css('--panel'), band:css('--band'), bandline:css('--bandline')};
+               muted:css('--muted'), focus:css('--focus'), or:css('--or'), orbg:css('--orbg'), and:css('--and'), andbg:css('--andbg'), panel:css('--panel'), band:css('--band'), bandline:css('--bandline'), bandok:css('--bandok'), bandokline:css('--bandokline')};
 
   // depth = longest prerequisite chain. Catalog cycles (e.g. IIC2133 <-> IIC2154) are broken by
   // accepting mandatory ("y") links first and dropping optional ("o") links that would close a cycle.
@@ -488,7 +488,7 @@ function drawBands(ctx, col){
     const doneCr = b.ids.filter(id => !id.startsWith('__') && done.has(id)).reduce((t, id) => t + (credOf(id) || 0), 0);
     const title = sec.title;
     const sub = sec.kind === 'other' ? 'no cuentan para el programa'
-      : (sec.credits != null ? `${sec.credits} cr requeridos` : 'solo como reemplazo') + ` · aprobados ${doneCr} cr`;
+      : (sec.credits != null ? `${sec.credits} cr requeridos` : 'solo como reemplazo') + ` · aprobados ${doneCr} cr` + (sec.credits > 0 && doneCr >= sec.credits ? '  ✓ completo' : '');
     ctx.save();
     ctx.font = '600 15px system-ui, sans-serif';
     const tw = ctx.measureText(title).width;
@@ -499,8 +499,9 @@ function drawBands(ctx, col){
     const bottom = Math.max(b.bottom, Math.max(...ys) + ROWH / 2 + 10);
     ctx.beginPath();
     ctx.roundRect ? ctx.roundRect(x0, top, x1 - x0, bottom - top, 12) : ctx.rect(x0, top, x1 - x0, bottom - top);
-    ctx.fillStyle = col.band; ctx.fill();
-    ctx.lineWidth = 1.5; ctx.strokeStyle = col.bandline;
+    const complete = sec.credits != null && sec.credits > 0 && doneCr >= sec.credits;
+    ctx.fillStyle = complete ? col.bandok : col.band; ctx.fill();
+    ctx.lineWidth = complete ? 2 : 1.5; ctx.strokeStyle = complete ? col.bandokline : col.bandline;
     if (sec.kind !== 'req') ctx.setLineDash([7, 5]);
     ctx.stroke(); ctx.setLineDash([]);
     ctx.fillStyle = col.text; ctx.font = '600 15px system-ui, sans-serif'; ctx.textBaseline = 'top';
