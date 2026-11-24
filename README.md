@@ -172,6 +172,9 @@ Windows) antes de ejecutarlo. En Windows usa `py` donde aquí dice `python3`.
 - **📊 Comparar majors y minors**: tabla con todos los majors, el minor que más te conviene en
   cada uno, créditos aprobados (plan común, major, minor), semestres mínimos que te faltan
   (la cadena de prerrequisitos más larga) y cuántos cursos puedes tomar ahora.
+- **Máx. créditos por semestre** (por defecto 60, una carga completa; el tope oficial es 65):
+  los semestres restantes son el mayor entre *créditos que faltan ÷ ese máximo* y la cadena de
+  prerrequisitos más larga que te falta (un correquisito no suma semestre).
 - **Clic** en un curso = marcarlo como aprobado (verde). Los que ya puedes tomar se ven en azul.
   Los aprobados se guardan en tu navegador.
 - **Doble clic** = ver solo el árbol de ese curso.

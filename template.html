@@ -70,6 +70,8 @@ div.vis-tooltip{max-width:340px;white-space:normal;background:var(--panel);color
   <label for="minor">Minor</label>
   <select id="minor"></select>
   <button id="cmpBtn">📊 Comparar majors y minors</button>
+  <div class="row"><label for="cap" style="margin:0;text-transform:none;font-weight:400;font-size:13px;color:var(--text)">Máx. créditos por semestre</label>
+    <input type="number" id="cap" min="10" max="100" step="5" value="60" style="width:70px;padding:5px 6px;border:1px solid var(--border);border-radius:6px;background:var(--bg);color:var(--text);font:inherit"></div>
   <div id="best"></div>
   <label for="course">Curso</label>
   <input type="search" id="filter" placeholder="Filtrar (sigla o nombre)…">
@@ -184,7 +186,7 @@ function progress(mk, nk){
   // longest chain of not-yet-approved prerequisites among the mandatory courses = minimum semesters left
   const memo = {}, stack = new Set();
   const chain = c => { if (done.has(c)) return 0; if (memo[c] !== undefined) return memo[c]; if (stack.has(c)) return 0;
-    stack.add(c); const cost = e => !e ? 0 : e.c ? chain(e.c) : e.op === 'and' ? Math.max(...e.args.map(cost)) : Math.min(...e.args.map(cost));
+    stack.add(c); const cost = e => !e ? 0 : e.c ? chain(e.c) - (e.co && !done.has(e.c) ? 1 : 0) : e.op === 'and' ? Math.max(...e.args.map(cost)) : Math.min(...e.args.map(cost));
     const v = 1 + cost(C[c]?.expr); stack.delete(c); return memo[c] = v; };
   let sem = 0, avail = 0; const all = new Set();
   for (const {sec} of secs) for (const alts of sec.items) {
@@ -192,7 +194,10 @@ function progress(mk, nk){
     if (sec.kind === 'req' && sec.credits != null) sem = Math.max(sem, Math.min(...alts.map(chain)));
   }
   for (const c of all) if (!done.has(c) && sat(C[c]?.expr)) avail++;
-  r.sem = sem; r.avail = avail; r.pct = r.need ? r.got / r.need : 0;
+  // semesters left = the larger of (a) longest prerequisite chain and (b) missing credits / max credits per semester
+  const cap = capCr();
+  r.semChain = sem; r.semCred = Math.ceil(Math.max(0, r.need - r.got) / cap); r.sem = Math.max(sem, r.semCred);
+  r.avail = avail; r.pct = r.need ? r.got / r.need : 0;
   return r;
 }
 function bestMinor(mk){
@@ -227,7 +232,7 @@ function updateLabels(){
   if ($('minor').selectedOptions[0]?.disabled) $('minor').value = '';
   const cur = progress(mk, $('minor').value);
   const t = rank[0];
-  $('best').innerHTML = `<b>Tu avance:</b> ${cur.got}/${cur.need} cr (${pctTxt(cur)}) · faltan ≥ ${cur.sem} semestres<br>` +
+  $('best').innerHTML = `<b>Tu avance:</b> ${cur.got}/${cur.need} cr (${pctTxt(cur)}) · faltan ≥ ${cur.sem} semestres <span style="color:var(--muted)">(${cur.semCred} por créditos a ${capCr()} cr/sem, ${cur.semChain} por cadena de prerrequisitos)</span><br>` +
     (t && t.r.got > 0 ? `<b>⭐ Mejor opción:</b> ${esc(NAME0[t.mk])}${t.nk ? ' + ' + esc(NAME0[t.nk]) : ''} (${t.r.got} cr)` :
      '<span style="color:var(--muted)">Marca tus cursos aprobados (clic) para ver la mejor opción.</span>');
 }
@@ -235,14 +240,14 @@ function showCompare(){
   const rank = ranking();
   $('cmpBody').innerHTML = `<h2>Comparar majors</h2>
    <p class="note">Para cada major se elige el minor donde más te sirve lo que ya aprobaste. Orden: más créditos aprobados que cuentan;
-   empate → menos semestres mínimos restantes (la cadena de prerrequisitos más larga que te falta) → más cursos disponibles ahora.
+   empate → menos semestres restantes → más cursos disponibles ahora. Semestres restantes = el mayor entre (créditos que faltan ÷ ${capCr()} cr por semestre) y la cadena de prerrequisitos más larga que te falta (un correquisito no suma semestre).
    Los electivos de Formación General no se pueden marcar aquí, así que el % total nunca llega a 100.</p>
-   <table><thead><tr><th>#</th><th>Major</th><th>Mejor minor</th><th>Total que cuenta</th><th>Plan común</th><th>Major</th><th>Minor</th><th>Semestres mín. restantes</th><th>Disponibles ahora</th></tr></thead>
+   <table><thead><tr><th>#</th><th>Major</th><th>Mejor minor</th><th>Total que cuenta</th><th>Plan común</th><th>Major</th><th>Minor</th><th>Semestres restantes (mín.)</th><th>Disponibles ahora</th></tr></thead>
    <tbody>${rank.map((x, i) => `<tr data-mk="${x.mk}" data-nk="${x.nk}" class="${i === 0 && x.r.got > 0 ? 'top' : ''}">
      <td>${i === 0 && x.r.got > 0 ? '⭐' : i + 1}</td><td><b>${esc(NAME0[x.mk])}</b></td><td>${x.nk ? esc(NAME0[x.nk]) : '—'}</td>
      <td>${x.r.got}/${x.r.need} cr (${pctTxt(x.r)})<div class="bar"><i style="width:${x.r.pct * 100}%"></i></div></td>
      <td>${x.r.pc.got}/${x.r.pc.need}</td><td>${x.r.mj.got}/${x.r.mj.need}</td><td>${x.r.mn.got}/${x.r.mn.need}</td>
-     <td>${x.r.sem}</td><td>${x.r.avail}</td></tr>`).join('')}</tbody></table>
+     <td><b>${x.r.sem}</b><div style="color:var(--muted);font-size:11px">créditos: ${x.r.semCred} · cadena: ${x.r.semChain}</div></td><td>${x.r.avail}</td></tr>`).join('')}</tbody></table>
    <p class="note" style="margin-top:10px">Clic en una fila para abrir ese major con su mejor minor.</p>`;
   $('cmp').style.display = 'block';
   $('cmpBody').querySelectorAll('tbody tr').forEach(tr => tr.onclick = () => {
@@ -299,6 +304,7 @@ function bandInfo(){
 }
 const OTHER = {title:'Prerrequisitos fuera del programa', credits:null, kind:'other', items:[]};
 const credOf = s => C[s]?.credits;
+const capCr = () => { const v = parseInt($('cap')?.value, 10); return v >= 10 ? v : 60; };
 
 // ---------- graph
 let network = null, bands = [];
@@ -545,6 +551,8 @@ $('mode').onchange = $('prune').onchange = $('outside').onchange = $('allEdges')
 $('course').onchange = () => { firstView = true; render(); };
 $('clearDone').onclick = () => { if (confirm('¿Borrar todos los cursos aprobados?')) { done.clear(); store.set('uc_done', []); render(); } };
 $('fit').onclick = () => network && network.fit();
+$('cap').value = store.get('uc_cap', 60);
+$('cap').onchange = () => { store.set('uc_cap', capCr()); render(); if ($('cmp').style.display === 'block') showCompare(); };
 $('cmpBtn').onclick = showCompare;
 $('cmpClose').onclick = () => $('cmp').style.display = 'none';
 fillCourses(); render();
