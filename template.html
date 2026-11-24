@@ -58,10 +58,11 @@ div.vis-tooltip{max-width:340px;white-space:normal;background:var(--panel);color
     <option value="both">Ambos</option>
   </select>
   <div class="row"><input type="checkbox" id="prune" checked><label for="prune" style="margin:0;text-transform:none;font-weight:400;font-size:13px;color:var(--text)">Ocultar alternativas "o" ajenas al programa</label></div>
-  <div class="row"><input type="checkbox" id="hideIso" checked><label for="hideIso" style="margin:0;text-transform:none;font-weight:400;font-size:13px;color:var(--text)">Ocultar cursos sin relaciones (mapa completo)</label></div>
+  <div class="row"><input type="checkbox" id="outside"><label for="outside" style="margin:0;text-transform:none;font-weight:400;font-size:13px;color:var(--text)">Mapa completo: incluir prerrequisitos fuera del programa</label></div>
+  <div class="row"><input type="checkbox" id="allEdges"><label for="allEdges" style="margin:0;text-transform:none;font-weight:400;font-size:13px;color:var(--text)">Mapa completo: mostrar todas las flechas</label></div>
   <div class="btns">
     <button id="clearDone">Borrar aprobados</button>
-    <button id="fit">Centrar</button>
+    <button id="fit">Ver todo</button>
   </div>
   <div id="stats"></div>
   <div id="info">Clic en un curso: marcar/desmarcar como <b>aprobado</b>. Pasa el mouse para ver detalles.</div>
@@ -177,7 +178,8 @@ function render(){
   const {set: prog, req} = progInfo(), doPrune = $('prune').checked;
   const focus = $('course').value || '*', mode = $('mode').value;
   let keep;
-  if (focus === '*') keep = backClosure(prog, prog, doPrune);
+  const full = focus === '*';
+  if (full) keep = $('outside').checked ? backClosure(prog, prog, doPrune) : new Set(prog);
   else {
     keep = new Set();
     if (mode !== 'fwd') backClosure([focus], prog, doPrune).forEach(s => keep.add(s));
@@ -194,12 +196,6 @@ function render(){
   // depth = longest prerequisite chain. Catalog cycles (e.g. IIC2133 <-> IIC2154) are broken by
   // accepting mandatory ("y") links first and dropping optional ("o") links that would close a cycle.
   const pr = {}; for (const s of keep) pr[s] = prune(C[s]?.expr, keep, prog, doPrune);
-  let hidden = 0;
-  if (focus === '*' && $('hideIso').checked) {
-    const linked = new Set();
-    for (const s of keep) for (const p of leaves(pr[s])) { linked.add(s); linked.add(p); }
-    for (const s of [...keep]) if (!linked.has(s)) { keep.delete(s); hidden++; }
-  }
   const hardLeaves = e => !e ? [] : e.c ? [e.c] : e.op === 'and' ? e.args.flatMap(hardLeaves) : [];
   const acc = {}; keep.forEach(s => acc[s] = new Set());
   const reaches = (from, target) => {
@@ -245,15 +241,15 @@ function render(){
   function addExpr(target, e, nest){
     if (nest === undefined) { nest = 0; srcCourse = target; }
     if (e.c) { const back = !acc[srcCourse]?.has(e.c);
-      edges.push({from:e.c, to:target, dashes:e.co || back, arrows:'to', title:back ? 'ciclo en el catálogo' : (e.co ? 'correquisito' : undefined),
+      edges.push({id:`e${edges.length}`, owner:srcCourse, from:e.c, to:target, dashes:e.co || back, arrows:'to', title:back ? 'ciclo en el catálogo' : (e.co ? 'correquisito' : undefined),
                   color: back ? {color:col.border, opacity:.6} : undefined}); return; }
     const id = `__${e.op}${j++}`, tp = pos[srcCourse];
     pos[id] = {x: tp.x - BOXW / 2 - 34 - nest * 26, y: tp.y + nest * 14};
     bandOf[srcCourse].ids.push(id);
-    nodes.push({id, ...pos[id], label: e.op === 'or' ? 'o' : 'y', shape: e.op === 'or' ? 'diamond' : 'square', size: 7,
+    nodes.push({id, owner:srcCourse, ...pos[id], label: e.op === 'or' ? 'o' : 'y', shape: e.op === 'or' ? 'diamond' : 'square', size: 7,
       color:{background: col.panel, border: col.muted}, font:{size:12, color:col.muted, vadjust:-22},
       title: e.op === 'or' ? 'Basta con uno' : 'Se requieren todos'});
-    edges.push({from:id, to:target, arrows:'to'});
+    edges.push({id:`e${edges.length}`, owner:srcCourse, from:id, to:target, arrows:'to'});
     e.args.forEach(a => addExpr(id, a, nest + 1));
   }
   for (const s of keep) {
@@ -276,7 +272,11 @@ function render(){
   }
   $('empty').style.display = nodes.length ? 'none' : 'flex';
   const nDone = [...prog].filter(s => done.has(s)).length;
-  $('stats').textContent = `${keep.size} cursos en el grafo${hidden ? ` (+${hidden} sin relaciones ocultos)` : ''} · ${nDone}/${prog.size} del programa aprobados`;
+  $('stats').textContent = `${keep.size} cursos en el grafo · ${nDone}/${prog.size} del programa aprobados`
+    + (full && !$('allEdges').checked ? ' · pasa el mouse por un curso para ver sus flechas' : '');
+  const hideEdges = full && !$('allEdges').checked;
+  edges.forEach(e => e.hidden = hideEdges);
+  nodes.forEach(n => { if (n.owner) n.hidden = hideEdges; });
   const opts = {
     layout:{hierarchical:false, improvedLayout:false}, physics:false,
     interaction:{hover:true, tooltipDelay:100, keyboard:true},
@@ -295,7 +295,42 @@ function render(){
   network.on('doubleClick', p => { const id = p.nodes[0]; if (!id || id.startsWith('__')) return;
     if (![...$('course').options].some(o => o.value === id)) $('course').add(new Option(`${id}  ${nm(id)}`, id));
     $('course').value = id; render(); });
-  network.on('hoverNode', p => { if (!p.node.startsWith('__')) showInfo(p.node); });
+  network.on('hoverNode', p => { if (!p.node.startsWith('__')) { showInfo(p.node); highlight(p.node); } });
+  network.on('blurNode', () => highlight(null));
+  hl = {data, pr, keep, hideEdges, nodes, edges};
+  if (firstView) { firstView = false; initialView(pos); }
+}
+
+// ---------- chain highlight: on hover show what a course needs and what it unlocks
+let hl = null, firstView = true;
+function highlight(id){
+  if (!hl) return;
+  const {data, pr, keep, hideEdges, nodes, edges} = hl;
+  if (!id) {
+    data.nodes.update(nodes.map(n => ({id:n.id, opacity:1, hidden: n.owner ? hideEdges : false})));
+    data.edges.update(edges.map(e => ({id:e.id, hidden:hideEdges})));
+    return;
+  }
+  const chain = new Set([id]);
+  const up = [id];                       // prerequisites, transitively
+  while (up.length) for (const p of leaves(pr[up.pop()])) if (!chain.has(p)) { chain.add(p); up.push(p); }
+  const rev = {}; for (const s of keep) for (const p of leaves(pr[s])) (rev[p] ??= []).push(s);
+  const down = [id], seen = new Set([id]);  // what it unlocks, transitively
+  while (down.length) for (const d of rev[down.pop()] || []) if (!seen.has(d)) { seen.add(d); chain.add(d); down.push(d); }
+  data.nodes.update(nodes.map(n => ({id:n.id, opacity: chain.has(n.owner || n.id) ? 1 : 0.12,
+    hidden: n.owner ? (hideEdges && !chain.has(n.owner)) : false})));
+  data.edges.update(edges.map(e => ({id:e.id,
+    hidden: !(chain.has(e.owner) && (String(e.from).startsWith('__') || chain.has(e.from)))})));
+}
+
+// ---------- first view: readable zoom anchored at the top-left instead of shrinking everything to fit
+function initialView(pos){
+  const pts = Object.values(pos); if (!pts.length) return;
+  network.fit();
+  const minScale = 0.8;
+  if (network.getScale() >= minScale) return;
+  const el = $('net'), minX = Math.min(...pts.map(p => p.x)) - BOXW / 2 - 40, minY = Math.min(...pts.map(p => p.y) , ...bands.map(b => b.top)) - 24;
+  network.moveTo({scale:minScale, position:{x: minX + el.clientWidth / 2 / minScale, y: minY + el.clientHeight / 2 / minScale}});
 }
 
 function drawBands(ctx, col){
@@ -359,9 +394,10 @@ function showInfo(s){
    · <small>clic = aprobar · doble clic = enfocar</small></p>`;
 }
 
-$('major').onchange = $('minor').onchange = () => { fillCourses(); render(); };
+$('major').onchange = $('minor').onchange = () => { firstView = true; fillCourses(); render(); };
 $('filter').oninput = fillCourses;
-$('course').onchange = $('mode').onchange = $('prune').onchange = $('hideIso').onchange = render;
+$('mode').onchange = $('prune').onchange = $('outside').onchange = $('allEdges').onchange = render;
+$('course').onchange = () => { firstView = true; render(); };
 $('clearDone').onclick = () => { if (confirm('¿Borrar todos los cursos aprobados?')) { done.clear(); store.set('uc_done', []); render(); } };
 $('fit').onclick = () => network && network.fit();
 fillCourses(); render();

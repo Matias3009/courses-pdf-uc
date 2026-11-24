@@ -11,7 +11,8 @@ python uc_prereqs.py                       # descarga requisitos y abre uc_prere
 - `python uc_prereqs.py --pdf malla.pdf --pdf-name "Mi Major"` → programa desde otro PDF
 - `--offline` usa solo las cachés, `--refresh` vuelve a descargar todo, `--no-info` omite nombres/créditos/descripciones.
 
-En el HTML: elige Major/Track y Minor, luego un curso. Clic = marcar aprobado,
+En el HTML: elige Major/Track y Minor, luego un curso. En el mapa completo las flechas
+están ocultas: pasa el mouse por un curso para ver qué necesita y qué desbloquea. Clic = marcar aprobado,
 doble clic = enfocar ese curso. Cada área del plan (p. ej. "1.1 Ciencias básicas (mínimos)")
 se dibuja como un recuadro con los créditos que exige y los que llevas aprobados; cada curso
 muestra sus créditos. Al pasar el mouse aparece el nombre completo, créditos y una descripción breve.
