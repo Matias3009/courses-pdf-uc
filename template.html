@@ -287,7 +287,7 @@ function fwdClosure(root, prog, doPrune, universe){
 }
 
 // ---------- bands (one box per plan area)
-const BOXW = 210, COLW = 400, ROWH = 84, BAND_TITLE = 46, BAND_PAD = 22, BAND_GAP = 34;
+const BOXW = 210, COLW = 480, ROWH = 84, BAND_TITLE = 46, BAND_PAD = 22, BAND_GAP = 34;
 function bandInfo(){
   const secs = [];
   for (const k of [$('major').value, $('minor').value]) if (k && P[k]) P[k].sections.forEach(sec => secs.push(sec));
@@ -376,7 +376,7 @@ function render(){
     // A top-level "y" needs no marker: every arrow that reaches a course directly is mandatory.
     if (e.op === 'and' && nest === 0) { e.args.forEach(a => addExpr(target, a, 0)); return; }
     const id = `__${e.op}${j++}`, tp = pos[srcCourse], isOr = e.op === 'or';
-    pos[id] = at || {x: tp.x - BOXW / 2 - 48, y: tp.y};
+    pos[id] = at || {x: tp.x - BOXW / 2 - 80, y: tp.y};
     bandOf[srcCourse].ids.push(id);
     nodes.push({id, owner:srcCourse, ...pos[id], label: isOr ? 'UNO DE' : 'TODOS', shape:'box', margin:{top:4, bottom:4, left:7, right:7},
       shapeProperties:{borderRadius:10}, borderWidth:1.5,
@@ -384,12 +384,12 @@ function render(){
              hover:{background: isOr ? col.orbg : col.andbg, border: isOr ? col.or : col.and}},
       font:{size:11, bold:true, color: isOr ? col.or : col.and, face:'system-ui'},
       title: isOr ? 'Basta con aprobar UNO de los cursos que llegan aquí' : 'Se necesitan TODOS los cursos que llegan aquí'});
-    edges.push({id:`e${edges.length}`, owner:srcCourse, from:id, to:target, arrows:'to', color:{color: isOr ? col.or : col.and}, width:1.6});
+    edges.push({id:`e${edges.length}`, owner:srcCourse, from:id, to:target, arrows:{to:{enabled:true, scaleFactor:.7}}, color:{color: isOr ? col.or : col.and}, width:1.6});
     // nested groups: one column further left, spread vertically so they never overlap
     const sub = e.args.filter(a => !a.c);
     e.args.forEach(a => { const k = sub.indexOf(a);
       addExpr(id, a, nest + 1, isOr ? col.or : col.and,
-              k < 0 ? undefined : {x: pos[id].x - 92, y: pos[id].y + (k - (sub.length - 1) / 2) * 36}); });
+              k < 0 ? undefined : {x: pos[id].x - 118, y: pos[id].y + (k - (sub.length - 1) / 2) * 54}); });
   }
   for (const s of keep) {
     const info = C[s] || {}, inProg = prog.has(s);
