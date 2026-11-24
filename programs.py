@@ -149,6 +149,42 @@ NAMES = {
     "ICT3103": "Economía de Transporte", "ICT3244": "Modelos Econométricos en Ingeniería",
 }
 
+NAMES.update({
+    # Robótica
+    "ICM2003": "Sistemas Electromecánicos", "IRB2002": "Diseño de Sistemas Robóticos (Capstone)",
+    "IIC2685": "Robótica Móvil", "ICM2813": "Control de Sistemas Mecánicos",
+    "IEE2693": "Electro-Óptica", "IEE2714": "Fundamentos de Procesamiento de Imágenes",
+    "IEE2313": "Sistemas de Potencia", "IRB0600": "Trabajo Personal Dirigido",
+    "IRB0601": "Trabajo Personal Dirigido", "IIC3697": "Aprendizaje Profundo",
+    "ICM2982": "Laboratorio de Máquinas Térmicas",
+    # Diseño e Innovación
+    "IDI2996": "Fundamentos Sociales y Técnicos de la Innovación", "IDI2015": "Antro-Diseño",
+    "IDI2004": "Dilab-Laboratorio de Diseño en Ingeniería y Sistemas",
+    "DNO1032": "Laboratorio de Experimentación y Prototipado",
+    "DNO016": "Diseño y Manufactura Digital Cad/Cam",
+    "IDI2025": "Tecnología, Emprendimiento y Diseño (Capstone)",
+    "DNO1022": "Percepción y Composición", "DNO1042": "Materiales y Procesos",
+    "DNO1014": "Historias del Diseño y sus Contextos Históricos", "ICE2403": "Diseño Estructural",
+    # Biomédica
+    "IBM2011": "Laboratorio en Ingeniería Biomédica",
+    "IBM2122": "Diseño en Ingeniería Biomédica I (Capstone)",
+    "IBM2123": "Diseño en Ingeniería Biomédica II (Capstone)", "QIM117": "Bioquímica",
+    "IBM2121": "Biomateriales", "BIO239M": "Biología Molecular de la Célula",
+    "MED110A": "Integrado Ciencias Médicas I", "MED214A": "Bases y Mecanismos de la Enfermedad I",
+    "ICE2020": "Introducción a la Biomecánica", "IBM2020": "Introducción a la Biomecánica",
+    "IBM2985": "Investigación o Proyecto", "MED107A": "Bases y Fundamentos de la Medicina I",
+    "MED108A": "Bases y Fundamentos de la Medicina II", "MED109A": "Psicología Médica",
+    "MED206A": "Salud Pública", "MED111A": "Morfología I", "MED212A": "Morfología II",
+    "MED213A": "Morfología III", "MED208A": "Inmunología y Genética",
+    # Software
+    "IIC2113": "Diseño Detallado de Software", "IIC2173": "Arquitectura de Sistemas de Software",
+    # Matemática
+    "MAT380I": "Teoría de Probabilidades", "IMT2116": "Taller de Matemáticas Aplicadas (Capstone)",
+    "IMT2117": "Probabilidades y Algoritmos", "IMT2310": "Álgebra Abstracta y Aplicaciones",
+    "IMT2565": "Optimización Combinatorial", "IMT2118": "Ciencia de Datos Geoespaciales",
+    "IMT2250": "Optimización para Ciencia de Datos", "IMT2260": "Teoría de Aprendizaje Automático",
+})
+
 # ---------------------------------------------------------------- créditos por curso (PDF)
 # Por defecto 10 cr. buscacursos.uc.cl, si responde, tiene prioridad.
 CREDITS = {s: 10 for s in NAMES}
@@ -156,6 +192,8 @@ CREDITS.update({
     "FIS0154": 0, "FIS0152": 0, "FIS0153": 0,
     "IEE2183": 5, "IEE2473": 5, "IEE2273": 5, "IEE2683": 5, "IEE2573": 5,
     "ING2031": 5, "DEM298": 5, "ICT3352": 5, "ICT3454": 5,
+    "IRB0600": 5, "IRB0601": 5, "BIO239M": 15, "MED110A": 5, "MED214A": 30, "MED109A": 5,
+    "MED206A": 5, "MED111A": 5, "MED212A": 15, "MED213A": 15, "MED208A": 5,
 })
 
 # ---------------------------------------------------------------- secciones compartidas
@@ -164,7 +202,7 @@ PLAN_COMUN = [
         "MAT1610", "QIM100E", "MAT1620", ["FIS1514", "ICE1514"], "FIS0154", "ICS1513",
         "IIC1103", ["FIS1523", "IIQ1003", "ICM1003", "IIQ103H"], "FIS0152", "EYP1113",
         ["FIS1533", "IEE1533"], "FIS0153", "ING2030",
-    ], 120),
+    ], 100),
     ("1.1 Optativo Biológico", "opt", ["BIO110C", "BIO141C", "BIO135C", "BIO143M"], 10),
     ("1.2 Formación General (FIL2001 + Teológico + 60 cr electivos)", "req", ["FIL2001"], 80),
     ("1.3 Base general para Major (mínimos)", "req", ["MAT1203", "ING1004", "MAT1630", "MAT1640"], 40),
@@ -194,6 +232,26 @@ ELEC_MAJOR = [
     ], 100),
 ]
 
+FUND_OPT = ELEC_MAJOR[0]  # lista estándar de Optativo de Fundamentos de Ciencias o Ingeniería
+
+
+def plan_comun(bio_req=None):
+    """Plan común; bio_req = curso biológico obligatorio para el major (reemplaza la lista)."""
+    secs = list(PLAN_COMUN)
+    if bio_req:
+        secs[1] = (f"1.1 Optativo Biológico ({bio_req} obligatorio en este Major)", "req", [bio_req], 10)
+    return secs
+
+
+def fund_req(sigla):
+    return ("1.1 Optativo de Fundamentos (obligatorio en este Major)", "req", [sigla], 10)
+
+
+ROBOTICA_MINOR_OPT_COMUN = [
+    "IEE2123", "IEE2103", "IEE2613", "IEE2463", "IIC2613", "IIC2685", "IIC2343", "IEE2714",
+    "ICM2003", "ICM2813", "ING2050", "IRB0600", "IRB0601", ["ICS1113", "ICS113H"],
+]
+
 COMPL = "Optativos Complementarios (si ya aprobaste un mínimo)"
 
 # ---------------------------------------------------------------- programas
@@ -209,17 +267,68 @@ PROGRAMS = {
                   ["IIC2713", "IIC2733", "IIC2764"], 30)]},
     "M233": {"name": "(M233) Ingeniería Eléctrica Vs.03", "kind": "major",
              "sections": PLAN_COMUN + ELEC_MAJOR},
-    "PLAN": {"name": "Solo Plan Común de Licenciatura", "kind": "major", "sections": PLAN_COMUN},
+    "M298": {"name": "(M298) Ingeniería de Software Vs.02", "kind": "major",
+             "sections": plan_comun() + [
+                 fund_req("IIC1253"),
+                 ("2. Major — Mínimos", "req", [
+                     "IIC2113", "IIC2133", "IIC2143", "IIC2173", "IIC2233", "IIC2413", "IIC2513",
+                     "IIC2531", "IIC2713", "IIC2154"], 100)]},
+    "M173": {"name": "(M173) Ingeniería Robótica Vs.02", "kind": "major",
+             "sections": plan_comun() + [
+                 fund_req("IIC2233"),
+                 ("2. Major — Mínimos", "req", ["IRB2001", "ICM2803", "IEE2713", "ICM2503", "IRB2002"], 50),
+                 ("2. Major — Optativo A (elegir uno)", "opt", ["IEE2123", "ICM2003"], 10),
+                 ("2. Major — Optativo B (elegir uno)", "opt", ["IIC2613", "IIC2685"], 10),
+                 ("2. Major — Optativo C (elegir uno)", "opt", ["IEE2103", "IIC1253"], 10),
+                 ("2. Major — Optativo D (elegir uno)", "opt", ["ICM2813", "IEE2613"], 10),
+                 ("2. Major — Optativo E (elegir uno)", "opt", ["IEE2463", "IIC2343"], 10)]},
+    "M206": {"name": "(M206) Ingeniería, Diseño e Innovación Vs.03", "kind": "major",
+             "sections": plan_comun() + [
+                 FUND_OPT,
+                 ("2. Major — Mínimos", "req", [
+                     "IDI1015", "IDI2996", "IDI2015", "IDI2004", "DNO1032", "DNO016", "IDI2025"], 70),
+                 ("2. Major — Optativo (elegir uno)", "opt", ["ICM2028", "ICS1113", "ICE2006", "IEE2123"], 10),
+                 ("2. Major — 20 cr en una área: Mecánica", "opt", ["ICM2022", "ICM2503"], 20),
+                 ("2. Major — 20 cr en una área: TI y Computación", "opt", [
+                     "IIC2233", "IIC2143", "IIC2343", "IIC2413", "IIC2513", "IIC2026"], 20),
+                 ("2. Major — 20 cr en una área: Civil", "opt", [
+                     "ICE2313", "ICE2114", "ICC2204", "ICC2105", "ICC2514", "ICT2904", "ICH2114",
+                     "ICH2304"], 20),
+                 ("2. Major — 20 cr en una área: Eléctrica", "opt", ["IEE2103", "IEE2413", "IEE2713"], 20),
+                 ("2. Major — 20 cr en una área: Diseño", "opt", ["DNO1022", "DNO1042", "DNO1014"], 20)],
+             "choose_one": ["2. Major — 20 cr en una área:"]},
+    "M270": {"name": "(M270) Ingeniería Biomédica — Track General Vs.03", "kind": "major",
+             "sections": plan_comun("BIO141C") + [
+                 fund_req("QIM200"),
+                 ("2. Major — Mínimos", "req", ["IEE2103", "IBM2011", "ICH1104", "IBM2122", "IBM2123"], 50),
+                 ("2. Track General — Mínimos", "req", ["QIM117", "BIO135C", "IEE2123", "ICM2028"], 40),
+                 ("2. Track General — Optativo (elegir uno)", "opt",
+                  ["ICS1113", "IIC2233", "ICM2403", "IEE2413", "IEE2713"], 10)]},
+    "M269": {"name": "(M269) Ingeniería Biomédica — Track Premedicina Vs.03", "kind": "major",
+             "sections": plan_comun("BIO141C") + [
+                 fund_req("QIM200"),
+                 ("2. Major — Mínimos", "req", ["IEE2103", "IBM2011", "ICH1104", "IBM2122", "IBM2123"], 50),
+                 ("2. Track Premedicina — Mínimos", "req", ["IBM2121", "BIO239M", "MED110A", "MED214A"], 60)]},
+    "M315": {"name": "(M315) Ingeniería Matemática Vs.04", "kind": "major",
+             "sections": plan_comun() + [
+                 FUND_OPT,
+                 ("2. Major — Mínimos", "req", [
+                     "MAT2605", "IIC2233", "ICS113H", "MAT251I", "MAT253I", "EYP2114", "MAT380I",
+                     "IMT2116"], 80),
+                 ("2. Major — Optativos (áreas 1, 2 y 3)", "opt", [
+                     "IMT2115", "IMT2117", "IMT2310", "IMT2565", "IIC2283", "IMT2111", "IMT2112",
+                     "IMT2113", "MAT2615", "IMT2118", "IMT2250", "IMT2260", "IIC2413", "IIC2613"], 20)]},
+    "PLAN": {"name": "Solo Plan Común de Licenciatura", "kind": "major", "sections": plan_comun() + [FUND_OPT]},
 
     # ------------------------------------------------------------ minors de profundidad
     "N160": {"name": "(N160) Profundidad: Fundamentos Científicos y Tecnológicos de la Computación Vs.02",
-             "kind": "minor", "for": ["M296", "M297"],
+             "kind": "minor", "for": ["M296", "M297", "M298"],
              "sections": [
                  ("Minor — Mínimos (requiere IIC2333 aprobado)", "req",
                   ["IIC2213", "IIC2223", "IIC2283", "IIC2523"], 40),
                  ("Minor — Optativos", "opt", ["IIC2333", "IIC2343", "IIC2613", "IIC3253"], 10)]},
     "N161": {"name": "(N161) Profundidad: Data Science y Analytics Vs.01",
-             "kind": "minor", "for": ["M296", "M297"],
+             "kind": "minor", "for": ["M296", "M297", "M298"],
              "sections": [
                  ("Minor — Mínimos", "req", ["IIC2433", "EYP2114", "IIC2026", "IIC2613"], 40),
                  ("Minor — Optativos", "opt", [
@@ -233,17 +342,60 @@ PROGRAMS = {
                  ("Minor — Optativos", "opt", [
                      "IBM2012", "IBM2101", "IIC2233", "IIC2115", "IRB2001", "ICS2121"], 30)]},
 
+    "N294": {"name": "(N294) Profundidad Robótica — Área 1: Ingeniería de Sistemas de Automatización Vs.02",
+             "kind": "minor", "for": ["M173"],
+             "sections": [
+                 ("Minor — Mínimos", "req", ["IEE2213", "IEE2413", "IEE2513"], 30),
+                 ("Minor — Optativos", "opt", ROBOTICA_MINOR_OPT_COMUN + [
+                     "IEE2183", "IEE2473", "IEE2683", "IEE2273", "IIC1253", "IIC2133", "IIC2283",
+                     "IEE2693", "IEE2313"], 20)]},
+    "N295": {"name": "(N295) Profundidad Robótica — Área 2: Inteligencia Computacional Vs.02",
+             "kind": "minor", "for": ["M173"],
+             "sections": [
+                 ("Minor — Mínimos", "req", ["IIC2213", "IIC2223", "IIC2133"], 30),
+                 ("Minor — Optativos", "opt", ROBOTICA_MINOR_OPT_COMUN + [
+                     "IIC2413", "IIC2513", "IIC3423", "IIC3697", "IIC2283"], 20)]},
+    "N296": {"name": "(N296) Profundidad Robótica — Área 3: Mecatrónica Vs.02",
+             "kind": "minor", "for": ["M173"],
+             "sections": [
+                 ("Minor — Mínimos", "req", ["ICH1104", "ICM2022", "ICM2028"], 30),
+                 ("Minor — Optativos", "opt", ROBOTICA_MINOR_OPT_COMUN + [
+                     "ICM2213", "ICM2223", "ICM2403", "ICM2982", "IEE2213", "IEE2413", "IEE2513",
+                     "IEE2693", "IEE2313", "IIC1253", "IIC2133", "IIC2283"], 20)]},
+    "N290": {"name": "(N290) Profundidad: Articulación Ingeniería Civil Vs.02", "kind": "minor", "for": ["M206"],
+             "sections": [
+                 ("Minor — 50 cr de áreas de Ing. Civil distintas a tu Major", "opt", [
+                     "ICC2204", "ICE2006", "ICE2114", "ICE2313", "ICE2403", "ICC2454", "ICE2413",
+                     "ICE2533", "ICE2604", "ICH2114", "ICH1104", "ICH2304", "ICC2105",
+                     ["ICT2904", "ICC2514"]], 50)]},
+    "N233": {"name": "(N233) Profundidad: Ingeniería Biomédica Vs.01", "kind": "minor", "for": ["M270", "M269"],
+             "sections": [
+                 ("Minor — Mínimos", "req", ["IBM2101", ["ICE2020", "IBM2020"], "IBM2121"], 30),
+                 ("Minor — Optativos", "opt", [
+                     "IBM2012", "ICE2135", "ICM2403", "IEE2714", "IBM2985", "IIC2233", "IIC2613"], 20)]},
+    "N234": {"name": "(N234) Articulación Premedicina Vs.02 (solo Track Premedicina)", "kind": "minor",
+             "for": ["M269"], "only": True,
+             "sections": [
+                 ("Minor — Mínimos", "req", ["MED111A", "MED212A", "MED213A", "MED208A"], 40),
+                 ("Requisito: aprobar como Formación General", "req",
+                  ["MED107A", "MED108A", "MED109A", "MED206A"], None)]},
+    "N379": {"name": "(N379) Profundidad: Teoría y Aplicación en Ingeniería Matemática", "kind": "minor",
+             "for": ["M315"],
+             "sections": [
+                 ("Minor — Mínimos", "req", ["IMT2565", "IMT2111", "IMT2260"], 30),
+                 ("Minor — 20 cr de investigación o cursos aplicados (aprobados por el Comité)", "opt", [], 20)]},
+
     # ------------------------------------------------------------ minors de amplitud
     "N338": {"name": "(N338) Amplitud: Ingeniería Hidráulica y Ambiental Vs.01", "kind": "minor",
              "sections": [
                  ("Minor — Mínimos", "req", ["ICH1104", "ICH2204", "ICH2114", "ICH2304", "ICH2314"], 50),
                  (COMPL, "opt", ["ICM2223", "IIQ2363", "ICH2604", "ICH2613", "ICE2623", "GEO202"], None)]},
-    "N776": {"name": "(N776) Amplitud: Programación Vs.01", "kind": "minor", "excluded": ["M296", "M297"],
+    "N776": {"name": "(N776) Amplitud: Programación Vs.01", "kind": "minor", "excluded": ["M296", "M297", "M298"],
              "sections": [
                  ("Minor — Mínimos", "req", ["IIC1253", "IIC2133", "IIC2143", "IIC2233", "IIC2413"], 50),
                  (COMPL, "opt", ["IIC2343", "IIC2713", "IIC2513", "IIC2613", "IIC2333", "IIC2283"], None)]},
     "N207": {"name": "(N207) Amplitud: Tecnologías de la Información Vs.01", "kind": "minor",
-             "excluded": ["M296", "M297"],
+             "excluded": ["M296", "M297", "M298"],
              "sections": [
                  ("Minor — Mínimos", "req", ["IIC2233", "IIC2413", "IIC2733", "IIC2764", "IIC2713"], 50),
                  (COMPL, "opt", ["IIC2513", "IIC2433", "IIC2613", "IIC2985", "IIC2986", "IIC2987"], None)]},
@@ -305,14 +457,14 @@ PROGRAMS = {
              "sections": [
                  ("Minor — Mínimos", "req", ["BIO141C", "BIO151E", "IIQ2663", "IIQ2693", "QIM200"], 50),
                  (COMPL, "opt", ["BIO228C", "BIO252I", "IIQ2133", "IIQ2043", "IIQ2113", "IIQ2673"], None)]},
-    "N205": {"name": "(N205) Amplitud: Matemáticas Aplicadas Vs.01", "kind": "minor",
+    "N205": {"name": "(N205) Amplitud: Matemáticas Aplicadas Vs.01", "kind": "minor", "excluded": ["M315"],
              "sections": [
                  ("Minor — Mínimos", "req", ["MAT2605", "MAT251I"], 20),
                  ("Minor — Optativos", "opt", [
                      "EYP2114", "EYP280I", ["ICS1113", "ICS113H"], "IIC1253", "IMT2111", "IMT2112",
                      "IMT2113", "IMT2115", "MAT250I", "MAT2205", "MAT2305", "MAT2415", "MAT2545",
                      "MAT255I", "MAT270I", "MAT253I", "MAT2615", "MAT2320"], 30)]},
-    "N206": {"name": "(N206) Amplitud: Ingeniería Matemática Vs.01", "kind": "minor",
+    "N206": {"name": "(N206) Amplitud: Ingeniería Matemática Vs.01", "kind": "minor", "excluded": ["M315"],
              "sections": [
                  ("Minor — Mínimos", "req", ["MAT2605", "MAT251I", "IIC1253", "MAT253I", "EYP2114"], 50),
                  (COMPL, "opt", [
@@ -328,7 +480,7 @@ PROGRAMS = {
                  ("Minor — Optativos", "opt", ["ICE2006", "ICE2313", "ICE2604", "ICC2424", "ICC2514"], 20),
                  (COMPL, "opt", [
                      "ICC2454", "ICC2414", "ICC2354", "ICC3464", "ICC3470", "ICC2312", "ICC2913"], None)]},
-    "N242": {"name": "(N242) Amplitud: Innovación Tecnológica Vs.01", "kind": "minor",
+    "N242": {"name": "(N242) Amplitud: Innovación Tecnológica Vs.01", "kind": "minor", "excluded": ["M206"],
              "sections": [
                  ("Minor — Mínimos", "req", ["IDI2031", "ICS2031", "ICS2032", "ING2031", "DEM298"], 40),
                  ("Minor — Optativos (Escuela de Ingeniería)", "opt", [], 10)]},

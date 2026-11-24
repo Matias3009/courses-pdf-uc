@@ -7,9 +7,9 @@
 <script src="https://unpkg.com/vis-network@9.1.9/standalone/umd/vis-network.min.js"></script>
 <style>
 :root{--bg:#f6f7f9;--panel:#fff;--text:#1d2330;--muted:#667085;--border:#d9dde5;
-  --req:#2f6fdb;--band:rgba(47,111,219,.045);--bandline:#c3cde0;--avail:#e8f0ff;--done:#1f9d55;--donebg:#dff5e8;--locked:#f1f2f5;--out:#fbfbfc;--focus:#e8590c}
+  --req:#2f6fdb;--or:#b45309;--orbg:#fdf0dc;--and:#6d28d9;--andbg:#efe7fd;--band:rgba(47,111,219,.045);--bandline:#c3cde0;--avail:#e8f0ff;--done:#1f9d55;--donebg:#dff5e8;--locked:#f1f2f5;--out:#fbfbfc;--focus:#e8590c}
 @media (prefers-color-scheme:dark){:root{--bg:#14161b;--panel:#1d2027;--text:#e6e8ee;--muted:#9aa3b2;--border:#343846;
-  --req:#6d9cff;--band:rgba(109,156,255,.06);--bandline:#3a4560;--avail:#22314f;--done:#3fcf7f;--donebg:#173826;--locked:#262a33;--out:#1a1c22;--focus:#ff8a3d}}
+  --req:#6d9cff;--or:#f5a524;--orbg:#3a2a12;--and:#b394ff;--andbg:#2c2242;--band:rgba(109,156,255,.06);--bandline:#3a4560;--avail:#22314f;--done:#3fcf7f;--donebg:#173826;--locked:#262a33;--out:#1a1c22;--focus:#ff8a3d}}
 *{box-sizing:border-box}
 body{margin:0;font:14px/1.4 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;background:var(--bg);color:var(--text);
   display:grid;grid-template-columns:330px 1fr;height:100vh}
@@ -30,6 +30,27 @@ button:hover{border-color:var(--req)}
 .legend span{display:inline-block;width:12px;height:12px;border-radius:3px;vertical-align:middle;margin-right:4px;border:2px solid}
 #stats{font-size:12px;color:var(--muted);margin-top:10px}
 main{position:relative}
+#cmpBtn{width:100%;margin-top:10px;padding:8px;font-weight:600;border-color:var(--req);color:var(--req)}
+#best{margin-top:8px;font-size:13px;padding:8px 10px;border-radius:8px;background:var(--avail);border:1px solid var(--req)}
+#cmp{position:absolute;inset:16px;background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:18px 20px;
+  overflow:auto;display:none;z-index:5;box-shadow:0 10px 40px rgba(0,0,0,.18)}
+#cmp h2{margin:0 0 4px;font-size:18px}
+#cmp .note{color:var(--muted);font-size:12px;margin:0 0 12px}
+#cmp table{border-collapse:collapse;width:100%;font-size:13px}
+#cmp th{text-align:left;color:var(--muted);font-weight:600;font-size:11px;text-transform:uppercase;padding:6px 8px;border-bottom:1px solid var(--border);position:sticky;top:-18px;background:var(--panel)}
+#cmp td{padding:8px;border-bottom:1px solid var(--border);vertical-align:top}
+#cmp tbody tr{cursor:pointer}
+#cmp tbody tr:hover{background:var(--avail)}
+#cmp tr.top td{background:var(--donebg)}
+.bar{height:6px;border-radius:3px;background:var(--locked);margin-top:4px;min-width:90px;overflow:hidden}
+.bar i{display:block;height:100%;background:var(--done)}
+#cmpClose{position:absolute;right:16px;top:14px}
+.pq{margin:4px 0 0;padding-left:16px}
+.pq li{margin:2px 0}
+.pq .k{font-weight:700;font-size:11px;letter-spacing:.03em;padding:1px 6px;border-radius:4px}
+.pq .k.or{background:var(--orbg);color:var(--or)}
+.pq .k.and{background:var(--andbg);color:var(--and)}
+.pq .ok{color:var(--done);font-weight:700}
 div.vis-tooltip{max-width:340px;white-space:normal;background:var(--panel);color:var(--text);border:1px solid var(--border);
   border-radius:8px;padding:10px 12px;font:13px/1.45 system-ui,sans-serif;box-shadow:0 6px 24px rgba(0,0,0,.18)}
 .tip .tname{font-size:14px;font-weight:600;margin:2px 0}
@@ -48,6 +69,8 @@ div.vis-tooltip{max-width:340px;white-space:normal;background:var(--panel);color
   <select id="major"></select>
   <label for="minor">Minor</label>
   <select id="minor"></select>
+  <button id="cmpBtn">📊 Comparar majors y minors</button>
+  <div id="best"></div>
   <label for="course">Curso</label>
   <input type="search" id="filter" placeholder="Filtrar (sigla o nombre)…">
   <select id="course" size="8" style="margin-top:6px"></select>
@@ -72,10 +95,14 @@ div.vis-tooltip{max-width:340px;white-space:normal;background:var(--panel);color
     <div><span style="background:var(--locked);border-color:var(--border)"></span>Bloqueado</div>
     <div><span style="background:var(--out);border-color:var(--border);border-style:dashed"></span>Fuera del programa / optativo</div>
     <div>Recuadro = área del plan con sus créditos requeridos (punteado = optativos)</div>
-    <div>◆ "o" = basta uno · ■ "y" = todos · línea punteada = correquisito</div>
+    <div style="margin-top:6px">Todas las flechas que llegan <b>directo</b> a un curso son <b>obligatorias</b>.</div>
+    <div><span style="background:var(--orbg);border-color:var(--or)"></span><b style="color:var(--or)">UNO DE</b>: basta con aprobar uno de los cursos que llegan (flechas naranjas)</div>
+    <div><span style="background:var(--andbg);border-color:var(--and)"></span><b style="color:var(--and)">TODOS</b>: dentro de una opción, se necesitan todos (flechas moradas)</div>
+    <div>Línea punteada = correquisito (se puede tomar a la vez)</div>
   </div>
 </aside>
-<main><div id="net"></div><div id="empty">Sin datos para mostrar.</div></main>
+<main><div id="net"></div><div id="empty">Sin datos para mostrar.</div>
+  <div id="cmp"><button id="cmpClose">Cerrar ✕</button><div id="cmpBody"></div></div></main>
 
 <script>
 const DATA = /*__DATA__*/null;
@@ -92,6 +119,9 @@ for (const [k,p] of Object.entries(P)) {
   (p.kind === 'major' ? $('major') : $('minor')).add(o);
 }
 $('minor').add(new Option('— Ninguno —', ''), 0);
+const NAME0 = {}; for (const o of [...$('major').options, ...$('minor').options]) NAME0[o.value] = o.text;
+const minorAllowed = (mk, nk) => { const n = P[nk]; if (!n || n.kind !== 'minor') return false;
+  return n.for ? n.for.includes(mk) : !(n.excluded || []).includes(mk); };
 $('major').value = store.get('uc_major', $('major').value) || $('major').value;
 $('minor').value = store.get('uc_minor', '') ?? '';
 
@@ -119,6 +149,105 @@ function fillCourses(){
   if (q && /^[a-z]{3}\d{3,4}[a-z]?$/i.test(q) && !set.has(q.toUpperCase()) && C[q.toUpperCase()])
     sel.add(new Option(`${q.toUpperCase()}  (fuera del programa)`, q.toUpperCase()));
   sel.value = [...sel.options].some(o => o.value === prev) ? prev : '*';
+}
+
+// ---------- progress: approved credits that count toward a major (+ minor)
+const isPlanComun = t => /^1\./.test(t);
+function progress(mk, nk){
+  const secs = [];
+  for (const k of [mk, nk]) if (k && P[k]) P[k].sections.forEach(sec => secs.push({sec, prog:k}));
+  const used = new Set(), choose = P[mk]?.choose_one || [];
+  const take = sec => { // greedily count approved, not-yet-used courses of this area up to its credits
+    let got = 0, picked = [];
+    for (const alts of sec.items) for (const c of alts) {
+      if (got >= sec.credits) break;
+      if (done.has(c) && !used.has(c)) { got += credOf(c) || 0; picked.push(c); break; }
+    }
+    return {got: Math.min(got, sec.credits), picked};
+  };
+  const r = {got:0, need:0, pc:{got:0, need:0}, mj:{got:0, need:0}, mn:{got:0, need:0}};
+  const add = (bucket, got, need) => { r[bucket].got += got; r[bucket].need += need; r.got += got; r.need += need; };
+  const order = [...secs.filter(x => x.sec.kind === 'req'), ...secs.filter(x => x.sec.kind !== 'req')];
+  const groups = {};
+  for (const {sec, prog} of order) {
+    if (sec.credits == null) continue;
+    const g = choose.find(pfx => prog === mk && sec.title.startsWith(pfx));
+    if (g) { (groups[g] ??= []).push(sec); continue; }
+    const t = take(sec); t.picked.forEach(c => used.add(c));
+    add(prog === nk ? 'mn' : isPlanComun(sec.title) ? 'pc' : 'mj', t.got, sec.credits);
+  }
+  for (const list of Object.values(groups)) { // "elige una área": keep the one where you have most
+    let best = null;
+    for (const sec of list) { const t = take(sec); if (!best || t.got > best.t.got) best = {sec, t}; }
+    best.t.picked.forEach(c => used.add(c)); add('mj', best.t.got, best.sec.credits);
+  }
+  // longest chain of not-yet-approved prerequisites among the mandatory courses = minimum semesters left
+  const memo = {}, stack = new Set();
+  const chain = c => { if (done.has(c)) return 0; if (memo[c] !== undefined) return memo[c]; if (stack.has(c)) return 0;
+    stack.add(c); const cost = e => !e ? 0 : e.c ? chain(e.c) : e.op === 'and' ? Math.max(...e.args.map(cost)) : Math.min(...e.args.map(cost));
+    const v = 1 + cost(C[c]?.expr); stack.delete(c); return memo[c] = v; };
+  let sem = 0, avail = 0; const all = new Set();
+  for (const {sec} of secs) for (const alts of sec.items) {
+    alts.forEach(c => all.add(c));
+    if (sec.kind === 'req' && sec.credits != null) sem = Math.max(sem, Math.min(...alts.map(chain)));
+  }
+  for (const c of all) if (!done.has(c) && sat(C[c]?.expr)) avail++;
+  r.sem = sem; r.avail = avail; r.pct = r.need ? r.got / r.need : 0;
+  return r;
+}
+function bestMinor(mk){
+  let best = {nk:'', r:progress(mk, '')};
+  for (const nk of Object.keys(P)) if (minorAllowed(mk, nk)) {
+    const r = progress(mk, nk);
+    if (r.got > best.r.got || (r.got === best.r.got && best.nk === '') ||
+        (r.got === best.r.got && r.sem < best.r.sem)) best = {nk, r};
+  }
+  return best;
+}
+function ranking(){
+  return Object.keys(P).filter(k => P[k].kind === 'major' && k !== 'PLAN')
+    .map(mk => ({mk, ...bestMinor(mk)}))
+    .sort((a, b) => b.r.got - a.r.got || a.r.sem - b.r.sem || b.r.avail - a.r.avail);
+}
+const pctTxt = r => `${Math.round(r.pct * 100)}%`;
+function updateLabels(){
+  const rank = ranking(), top = rank[0]?.mk;
+  for (const o of $('major').options) {
+    const x = rank.find(y => y.mk === o.value);
+    o.text = x ? `${o.value === top && x.r.got > 0 ? '⭐ ' : ''}${NAME0[o.value]} — ${pctTxt(x.r)} (${x.r.got}/${x.r.need} cr)` : NAME0[o.value];
+  }
+  const mk = $('major').value, bm = bestMinor(mk);
+  for (const o of $('minor').options) {
+    if (!o.value) continue;
+    const ok = minorAllowed(mk, o.value); o.disabled = !ok;
+    if (!ok) { o.text = `${NAME0[o.value]} — no disponible para este major`; continue; }
+    const r = progress(mk, o.value);
+    o.text = `${o.value === bm.nk && r.mn.got > 0 ? '⭐ ' : ''}${NAME0[o.value]} — ${r.mn.got}/${r.mn.need} cr`;
+  }
+  if ($('minor').selectedOptions[0]?.disabled) $('minor').value = '';
+  const cur = progress(mk, $('minor').value);
+  const t = rank[0];
+  $('best').innerHTML = `<b>Tu avance:</b> ${cur.got}/${cur.need} cr (${pctTxt(cur)}) · faltan ≥ ${cur.sem} semestres<br>` +
+    (t && t.r.got > 0 ? `<b>⭐ Mejor opción:</b> ${esc(NAME0[t.mk])}${t.nk ? ' + ' + esc(NAME0[t.nk]) : ''} (${t.r.got} cr)` :
+     '<span style="color:var(--muted)">Marca tus cursos aprobados (clic) para ver la mejor opción.</span>');
+}
+function showCompare(){
+  const rank = ranking();
+  $('cmpBody').innerHTML = `<h2>Comparar majors</h2>
+   <p class="note">Para cada major se elige el minor donde más te sirve lo que ya aprobaste. Orden: más créditos aprobados que cuentan;
+   empate → menos semestres mínimos restantes (la cadena de prerrequisitos más larga que te falta) → más cursos disponibles ahora.
+   Los electivos de Formación General no se pueden marcar aquí, así que el % total nunca llega a 100.</p>
+   <table><thead><tr><th>#</th><th>Major</th><th>Mejor minor</th><th>Total que cuenta</th><th>Plan común</th><th>Major</th><th>Minor</th><th>Semestres mín. restantes</th><th>Disponibles ahora</th></tr></thead>
+   <tbody>${rank.map((x, i) => `<tr data-mk="${x.mk}" data-nk="${x.nk}" class="${i === 0 && x.r.got > 0 ? 'top' : ''}">
+     <td>${i === 0 && x.r.got > 0 ? '⭐' : i + 1}</td><td><b>${esc(NAME0[x.mk])}</b></td><td>${x.nk ? esc(NAME0[x.nk]) : '—'}</td>
+     <td>${x.r.got}/${x.r.need} cr (${pctTxt(x.r)})<div class="bar"><i style="width:${x.r.pct * 100}%"></i></div></td>
+     <td>${x.r.pc.got}/${x.r.pc.need}</td><td>${x.r.mj.got}/${x.r.mj.need}</td><td>${x.r.mn.got}/${x.r.mn.need}</td>
+     <td>${x.r.sem}</td><td>${x.r.avail}</td></tr>`).join('')}</tbody></table>
+   <p class="note" style="margin-top:10px">Clic en una fila para abrir ese major con su mejor minor.</p>`;
+  $('cmp').style.display = 'block';
+  $('cmpBody').querySelectorAll('tbody tr').forEach(tr => tr.onclick = () => {
+    $('major').value = tr.dataset.mk; $('cmp').style.display = 'none';
+    updateLabels(); $('minor').value = tr.dataset.nk; firstView = true; fillCourses(); render(); });
 }
 
 // ---------- expression helpers
@@ -158,7 +287,7 @@ function fwdClosure(root, prog, doPrune, universe){
 }
 
 // ---------- bands (one box per plan area)
-const BOXW = 210, COLW = 330, ROWH = 84, BAND_TITLE = 46, BAND_PAD = 22, BAND_GAP = 34;
+const BOXW = 210, COLW = 400, ROWH = 84, BAND_TITLE = 46, BAND_PAD = 22, BAND_GAP = 34;
 function bandInfo(){
   const secs = [];
   for (const k of [$('major').value, $('minor').value]) if (k && P[k]) P[k].sections.forEach(sec => secs.push(sec));
@@ -174,6 +303,7 @@ const credOf = s => C[s]?.credits;
 // ---------- graph
 let network = null, bands = [];
 function render(){
+  updateLabels();
   store.set('uc_major', $('major').value); store.set('uc_minor', $('minor').value);
   const {set: prog, req} = progInfo(), doPrune = $('prune').checked;
   const focus = $('course').value || '*', mode = $('mode').value;
@@ -191,7 +321,7 @@ function render(){
   }
   const col = {req:css('--req'), avail:css('--avail'), done:css('--done'), donebg:css('--donebg'),
                locked:css('--locked'), out:css('--out'), border:css('--border'), text:css('--text'),
-               muted:css('--muted'), focus:css('--focus'), panel:css('--panel'), band:css('--band'), bandline:css('--bandline')};
+               muted:css('--muted'), focus:css('--focus'), or:css('--or'), orbg:css('--orbg'), and:css('--and'), andbg:css('--andbg'), panel:css('--panel'), band:css('--band'), bandline:css('--bandline')};
 
   // depth = longest prerequisite chain. Catalog cycles (e.g. IIC2133 <-> IIC2154) are broken by
   // accepting mandatory ("y") links first and dropping optional ("o") links that would close a cycle.
@@ -238,19 +368,28 @@ function render(){
 
   const nodes = [], edges = [];
   let j = 0, srcCourse;
-  function addExpr(target, e, nest){
+  function addExpr(target, e, nest, groupCol, at){
     if (nest === undefined) { nest = 0; srcCourse = target; }
     if (e.c) { const back = !acc[srcCourse]?.has(e.c);
       edges.push({id:`e${edges.length}`, owner:srcCourse, from:e.c, to:target, dashes:e.co || back, arrows:'to', title:back ? 'ciclo en el catálogo' : (e.co ? 'correquisito' : undefined),
-                  color: back ? {color:col.border, opacity:.6} : undefined}); return; }
-    const id = `__${e.op}${j++}`, tp = pos[srcCourse];
-    pos[id] = {x: tp.x - BOXW / 2 - 34 - nest * 26, y: tp.y + nest * 14};
+                  color: back ? {color:col.border, opacity:.6} : groupCol ? {color:groupCol} : undefined, width: groupCol ? 1.5 : undefined}); return; }
+    // A top-level "y" needs no marker: every arrow that reaches a course directly is mandatory.
+    if (e.op === 'and' && nest === 0) { e.args.forEach(a => addExpr(target, a, 0)); return; }
+    const id = `__${e.op}${j++}`, tp = pos[srcCourse], isOr = e.op === 'or';
+    pos[id] = at || {x: tp.x - BOXW / 2 - 48, y: tp.y};
     bandOf[srcCourse].ids.push(id);
-    nodes.push({id, owner:srcCourse, ...pos[id], label: e.op === 'or' ? 'o' : 'y', shape: e.op === 'or' ? 'diamond' : 'square', size: 7,
-      color:{background: col.panel, border: col.muted}, font:{size:12, color:col.muted, vadjust:-22},
-      title: e.op === 'or' ? 'Basta con uno' : 'Se requieren todos'});
-    edges.push({id:`e${edges.length}`, owner:srcCourse, from:id, to:target, arrows:'to'});
-    e.args.forEach(a => addExpr(id, a, nest + 1));
+    nodes.push({id, owner:srcCourse, ...pos[id], label: isOr ? 'UNO DE' : 'TODOS', shape:'box', margin:{top:4, bottom:4, left:7, right:7},
+      shapeProperties:{borderRadius:10}, borderWidth:1.5,
+      color:{background: isOr ? col.orbg : col.andbg, border: isOr ? col.or : col.and,
+             hover:{background: isOr ? col.orbg : col.andbg, border: isOr ? col.or : col.and}},
+      font:{size:11, bold:true, color: isOr ? col.or : col.and, face:'system-ui'},
+      title: isOr ? 'Basta con aprobar UNO de los cursos que llegan aquí' : 'Se necesitan TODOS los cursos que llegan aquí'});
+    edges.push({id:`e${edges.length}`, owner:srcCourse, from:id, to:target, arrows:'to', color:{color: isOr ? col.or : col.and}, width:1.6});
+    // nested groups: one column further left, spread vertically so they never overlap
+    const sub = e.args.filter(a => !a.c);
+    e.args.forEach(a => { const k = sub.indexOf(a);
+      addExpr(id, a, nest + 1, isOr ? col.or : col.and,
+              k < 0 ? undefined : {x: pos[id].x - 92, y: pos[id].y + (k - (sub.length - 1) / 2) * 36}); });
   }
   for (const s of keep) {
     const info = C[s] || {}, inProg = prog.has(s);
@@ -367,13 +506,19 @@ function drawBands(ctx, col){
   }
 }
 
+function exprHTML(e, top){
+  if (!e) return '<i>Sin prerrequisitos</i>';
+  if (e.c) return `${done.has(e.c) ? '<span class="ok">✓</span> ' : ''}<b>${esc(e.c)}</b> ${esc(nm(e.c))}${e.co ? ' <i>(correquisito)</i>' : ''}`;
+  const head = e.op === 'or' ? '<span class="k or">UNO DE</span>' : '<span class="k and">TODOS</span>';
+  return `${top && e.op === 'and' ? 'Necesitas ' : top ? 'Necesitas ' : ''}${head}<ul class="pq">${e.args.map(a => `<li>${exprHTML(a)}</li>`).join('')}</ul>`;
+}
 function tooltip(s, sec){
   const i = C[s] || {}, el = document.createElement('div');
   el.className = 'tip';
   el.innerHTML = `<b>${esc(s)}</b> · ${esc(i.credits ?? '?')} cr<div class="tname">${esc(nm(s) || 'Nombre no disponible')}</div>
     ${sec && sec !== OTHER ? `<div class="tsec">${esc(sec.title)}</div>` : ''}
     <p>${esc(i.desc || 'Sin descripción disponible.')}</p>
-    <div class="tpre"><b>Prerrequisitos:</b> ${esc(i.prereq || 'Sin datos')}</div>`;
+    <div class="tpre"><b>Prerrequisitos:</b> ${i.prereq ? exprHTML(i.expr, true) : 'Sin datos'}</div>`;
   return el;
 }
 function esc(s){ return String(s ?? '').replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c])); }
@@ -384,7 +529,7 @@ function showInfo(s){
    <dl>
     <dt>Créditos</dt><dd>${esc(i.credits ?? '?')}</dd>
     ${i.desc ? `<dt>Descripción</dt><dd>${esc(i.desc)}</dd>` : ''}
-    <dt>Prerrequisitos</dt><dd>${esc(i.prereq || (i.error ? '⚠ ' + i.error : 'Sin datos'))}</dd>
+    <dt>Prerrequisitos</dt><dd>${i.prereq ? exprHTML(i.expr, true) + `<div style="color:var(--muted);font-size:11px;margin-top:4px">Texto del catálogo: ${esc(i.prereq)}</div>` : esc(i.error ? '⚠ ' + i.error : 'Sin datos')}</dd>
     ${i.relacion && i.relacion !== 'No tiene' ? `<dt>Relación prerreq./restricciones</dt><dd>${esc(i.relacion)}</dd>` : ''}
     ${i.restricciones && i.restricciones !== 'No tiene' ? `<dt>Restricciones</dt><dd>${esc(i.restricciones)}</dd>` : ''}
     ${i.equivalencias && i.equivalencias !== 'No tiene' ? `<dt>Equivalencias</dt><dd>${esc(i.equivalencias)}</dd>` : ''}
@@ -400,6 +545,8 @@ $('mode').onchange = $('prune').onchange = $('outside').onchange = $('allEdges')
 $('course').onchange = () => { firstView = true; render(); };
 $('clearDone').onclick = () => { if (confirm('¿Borrar todos los cursos aprobados?')) { done.clear(); store.set('uc_done', []); render(); } };
 $('fit').onclick = () => network && network.fit();
+$('cmpBtn').onclick = showCompare;
+$('cmpClose').onclick = () => $('cmp').style.display = 'none';
 fillCourses(); render();
 </script>
 </body>

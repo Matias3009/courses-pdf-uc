@@ -432,6 +432,7 @@ def build_html(cat: Catalog, programs: dict, out: Path, info: Info | None = None
     for k, p in programs.items():
         progs[k] = {"name": p["name"], "kind": p["kind"],
                     "for": p.get("for"), "excluded": p.get("excluded"),
+                    "only": p.get("only"), "choose_one": p.get("choose_one"),
                     "sections": [{"title": sec[0], "kind": sec[1],
                                   "items": [i if isinstance(i, list) else [i] for i in sec[2]],
                                   "credits": sec[3] if len(sec) > 3 else None}
