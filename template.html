@@ -167,7 +167,7 @@ function progress(mk, nk){
     }
     return {got: Math.min(got, sec.credits), picked};
   };
-  const r = {got:0, need:0, pc:{got:0, need:0}, mj:{got:0, need:0}, mn:{got:0, need:0}};
+  const r = {got:0, need:0, pc:{got:0, need:0}, mj:{got:0, need:0}, mn:{got:0, need:0}, secGot:new Map(), countsIn:{}};
   const add = (bucket, got, need) => { r[bucket].got += got; r[bucket].need += need; r.got += got; r.need += need; };
   const order = [...secs.filter(x => x.sec.kind === 'req'), ...secs.filter(x => x.sec.kind !== 'req')];
   const groups = {};
@@ -175,13 +175,14 @@ function progress(mk, nk){
     if (sec.credits == null) continue;
     const g = choose.find(pfx => prog === mk && sec.title.startsWith(pfx));
     if (g) { (groups[g] ??= []).push(sec); continue; }
-    const t = take(sec); t.picked.forEach(c => used.add(c));
+    const t = take(sec); t.picked.forEach(c => { used.add(c); r.countsIn[c] = sec; }); r.secGot.set(sec, t.got);
     add(prog === nk ? 'mn' : isPlanComun(sec.title) ? 'pc' : 'mj', t.got, sec.credits);
   }
   for (const list of Object.values(groups)) { // "elige una área": keep the one where you have most
     let best = null;
     for (const sec of list) { const t = take(sec); if (!best || t.got > best.t.got) best = {sec, t}; }
-    best.t.picked.forEach(c => used.add(c)); add('mj', best.t.got, best.sec.credits);
+    list.forEach(sec => r.secGot.set(sec, 0));
+    best.t.picked.forEach(c => { used.add(c); r.countsIn[c] = best.sec; }); r.secGot.set(best.sec, best.t.got); add('mj', best.t.got, best.sec.credits);
   }
   // longest chain of not-yet-approved prerequisites among the mandatory courses = minimum semesters left
   const memo = {}, stack = new Set();
@@ -304,12 +305,14 @@ function bandInfo(){
 }
 const OTHER = {title:'Prerrequisitos fuera del programa', credits:null, kind:'other', items:[]};
 const credOf = s => C[s]?.credits;
+const baseOf = id => String(id).split('@@')[0];
 const capCr = () => { const v = parseInt($('cap')?.value, 10); return v >= 10 ? v : 60; };
 
 // ---------- graph
-let network = null, bands = [];
+let network = null, bands = [], curAlloc = null;
 function render(){
   updateLabels();
+  curAlloc = progress($('major').value, $('minor').value);
   store.set('uc_major', $('major').value); store.set('uc_minor', $('minor').value);
   const {set: prog, req} = progInfo(), doPrune = $('prune').checked;
   const focus = $('course').value || '*', mode = $('mode').value;
@@ -348,8 +351,17 @@ function render(){
 
   // ---- assign courses to bands and compute positions
   const {secs, owner} = bandInfo();
-  const members = new Map();
-  for (const s of keep) { const sec = owner.get(s) || OTHER; if (!members.has(sec)) members.set(sec, []); members.get(sec).push(s); }
+  // A course listed in several areas appears in each of them. The copy in its main area keeps the
+  // plain id (it carries the prerequisite arrows); the others are "SIGLA@@n" and stay linked to it.
+  const members = new Map(), copies = {}, secsOf = {};
+  const push = (sec, id) => { if (!members.has(sec)) members.set(sec, []); members.get(sec).push(id); };
+  const uniqSecs = [...new Set(secs)];
+  for (const s of keep) {
+    const main = owner.get(s) || OTHER; push(main, s);
+    const others = uniqSecs.filter(sec => sec !== main && sec.items.some(alts => alts.includes(s)));
+    secsOf[s] = [main, ...others];
+    others.forEach((sec, n) => { const cid = `${s}@@${n + 1}`; (copies[s] ??= []).push(cid); push(sec, cid); });
+  }
   const pos = {}, bandOf = {}, linkedAll = new Set();
   for (const s of keep) for (const p of leaves(pr[s])) { linkedAll.add(s); linkedAll.add(p); }
   bands = [];
@@ -357,7 +369,7 @@ function render(){
   for (const sec of [...secs, OTHER]) {
     const list = members.get(sec); if (!list || bands.some(b => b.sec === sec)) continue;
     const cols = {}, lone = [];
-    list.sort().forEach(s => (linkedAll.has(s) ? (cols[depth[s]] ??= []) : lone).push(s));
+    list.sort().forEach(s => (linkedAll.has(baseOf(s)) ? (cols[depth[baseOf(s)]] ??= []) : lone).push(s));
     let rows = Math.max(0, ...Object.values(cols).map(c => c.length));
     for (const [d, c] of Object.entries(cols)) c.forEach((s, i) => { pos[s] = {x: d * COLW, y: y + BAND_TITLE + i * ROWH + ROWH / 2}; });
     if (lone.length) { // courses with no links: a compact grid next to the linked ones
@@ -397,13 +409,15 @@ function render(){
       addExpr(id, a, nest + 1, isOr ? col.or : col.and,
               k < 0 ? undefined : {x: pos[id].x - 118, y: pos[id].y + (k - (sub.length - 1) / 2) * 54}); });
   }
-  for (const s of keep) {
-    const info = C[s] || {}, inProg = prog.has(s);
+  for (const s of keep) for (const nid of [s, ...(copies[s] || [])]) {
+    const info = C[s] || {}, inProg = prog.has(s), multi = !!copies[s];
     const isDone = done.has(s), avail = !isDone && sat(progPrune(info.expr, prog, doPrune));
     const name = nm(s), cr = credOf(s);
     const short = name.length > 50 ? name.slice(0, 48) + '…' : name;
+    if (nid !== s) edges.push({id:`e${edges.length}`, link:true, base:s, from:s, to:nid, dashes:[3,5], width:1.5,
+      color:{color:col.focus}, smooth:{type:'curvedCW', roundness:.15}, title:'mismo curso', hidden:true});
     nodes.push({
-      id:s, ...pos[s], label: `${s} · ${cr ?? '?'} cr` + (short ? `\n${short}` : ''),
+      id:nid, base:s, ...pos[nid], label: `${multi ? '⇄ ' : ''}${s} · ${cr ?? '?'} cr` + (short ? `\n${short}` : ''),
       shape:'box', margin:{top:7, bottom:7, left:9, right:9}, widthConstraint:{minimum:BOXW, maximum:BOXW},
       borderWidth: s === focus ? 3 : 2,
       shapeProperties:{borderDashes: inProg && req.has(s) ? false : [5,4], borderRadius:6},
@@ -411,16 +425,16 @@ function render(){
              border: s === focus ? col.focus : isDone ? col.done : avail ? col.req : col.border,
              hover:{background: isDone ? col.donebg : avail ? col.avail : col.locked, border: col.focus}},
       font:{color: inProg ? col.text : col.muted, size:13},
-      title: tooltip(s, bandOf[s]?.sec)
+      title: tooltip(s, bandOf[nid]?.sec, secsOf[s])
     });
-    if (pr[s]) addExpr(s, pr[s]);
+    if (nid === s && pr[s]) addExpr(s, pr[s]);
   }
   $('empty').style.display = nodes.length ? 'none' : 'flex';
   const nDone = [...prog].filter(s => done.has(s)).length;
   $('stats').textContent = `${keep.size} cursos en el grafo · ${nDone}/${prog.size} del programa aprobados`
     + (full && !$('allEdges').checked ? ' · pasa el mouse por un curso para ver sus flechas' : '');
   const hideEdges = full && !$('allEdges').checked;
-  edges.forEach(e => e.hidden = hideEdges);
+  edges.forEach(e => e.hidden = e.link ? true : hideEdges);
   nodes.forEach(n => { if (n.owner) n.hidden = hideEdges; });
   const opts = {
     layout:{hierarchical:false, improvedLayout:false}, physics:false,
@@ -432,15 +446,15 @@ function render(){
   network = new vis.Network($('net'), data, opts);
   network.on('beforeDrawing', ctx => drawBands(ctx, col));
   network.on('click', p => {
-    const id = p.nodes[0]; if (!id || id.startsWith('__')) return;
+    const id = baseOf(p.nodes[0] || ''); if (!id || id.startsWith('__')) return;
     done.has(id) ? done.delete(id) : done.add(id); store.set('uc_done', [...done]);
     const vp = network.getViewPosition(), sc = network.getScale();
     render(); network.moveTo({position:vp, scale:sc}); showInfo(id);
   });
-  network.on('doubleClick', p => { const id = p.nodes[0]; if (!id || id.startsWith('__')) return;
+  network.on('doubleClick', p => { const id = baseOf(p.nodes[0] || ''); if (!id || id.startsWith('__')) return;
     if (![...$('course').options].some(o => o.value === id)) $('course').add(new Option(`${id}  ${nm(id)}`, id));
     $('course').value = id; render(); });
-  network.on('hoverNode', p => { if (!p.node.startsWith('__')) { showInfo(p.node); highlight(p.node); } });
+  network.on('hoverNode', p => { if (!p.node.startsWith('__')) { showInfo(baseOf(p.node)); highlight(baseOf(p.node)); } });
   network.on('blurNode', () => highlight(null));
   hl = {data, pr, keep, hideEdges, nodes, edges};
   if (firstView) { firstView = false; initialView(pos); }
@@ -453,7 +467,7 @@ function highlight(id){
   const {data, pr, keep, hideEdges, nodes, edges} = hl;
   if (!id) {
     data.nodes.update(nodes.map(n => ({id:n.id, opacity:1, hidden: n.owner ? hideEdges : false})));
-    data.edges.update(edges.map(e => ({id:e.id, hidden:hideEdges})));
+    data.edges.update(edges.map(e => ({id:e.id, hidden: e.link ? true : hideEdges})));
     return;
   }
   const chain = new Set([id]);
@@ -462,10 +476,10 @@ function highlight(id){
   const rev = {}; for (const s of keep) for (const p of leaves(pr[s])) (rev[p] ??= []).push(s);
   const down = [id], seen = new Set([id]);  // what it unlocks, transitively
   while (down.length) for (const d of rev[down.pop()] || []) if (!seen.has(d)) { seen.add(d); chain.add(d); down.push(d); }
-  data.nodes.update(nodes.map(n => ({id:n.id, opacity: chain.has(n.owner || n.id) ? 1 : 0.12,
+  data.nodes.update(nodes.map(n => ({id:n.id, opacity: chain.has(n.owner || n.base || n.id) ? 1 : 0.12,
     hidden: n.owner ? (hideEdges && !chain.has(n.owner)) : false})));
   data.edges.update(edges.map(e => ({id:e.id,
-    hidden: !(chain.has(e.owner) && (String(e.from).startsWith('__') || chain.has(e.from)))})));
+    hidden: e.link ? e.base !== id : !(chain.has(e.owner) && (String(e.from).startsWith('__') || chain.has(e.from)))})));
 }
 
 // ---------- first view: readable zoom anchored at the top-left instead of shrinking everything to fit
@@ -485,7 +499,8 @@ function drawBands(ctx, col){
     const ys = b.ids.filter(id => !id.startsWith('__')).map(id => P[id]?.y).filter(v => v !== undefined);
     if (!xs.length) continue;
     const sec = b.sec;
-    const doneCr = b.ids.filter(id => !id.startsWith('__') && done.has(id)).reduce((t, id) => t + (credOf(id) || 0), 0);
+    const doneCr = curAlloc?.secGot.has(sec) ? curAlloc.secGot.get(sec)
+      : b.ids.filter(id => !id.startsWith('__') && done.has(baseOf(id))).reduce((t, id) => t + (credOf(baseOf(id)) || 0), 0);
     const title = sec.title;
     const sub = sec.kind === 'other' ? 'no cuentan para el programa'
       : (sec.credits != null ? `${sec.credits} cr requeridos` : 'solo como reemplazo') + ` · aprobados ${doneCr} cr` + (sec.credits > 0 && doneCr >= sec.credits ? '  ✓ completo' : '');
@@ -519,11 +534,13 @@ function exprHTML(e, top){
   const head = e.op === 'or' ? '<span class="k or">UNO DE</span>' : '<span class="k and">TODOS</span>';
   return `${top && e.op === 'and' ? 'Necesitas ' : top ? 'Necesitas ' : ''}${head}<ul class="pq">${e.args.map(a => `<li>${exprHTML(a)}</li>`).join('')}</ul>`;
 }
-function tooltip(s, sec){
+function tooltip(s, sec, all){
   const i = C[s] || {}, el = document.createElement('div');
   el.className = 'tip';
   el.innerHTML = `<b>${esc(s)}</b> · ${esc(i.credits ?? '?')} cr<div class="tname">${esc(nm(s) || 'Nombre no disponible')}</div>
     ${sec && sec !== OTHER ? `<div class="tsec">${esc(sec.title)}</div>` : ''}
+    ${done.has(s) && curAlloc?.countsIn[s] ? `<div class="tsec" style="color:var(--done)">✓ Cuenta para: ${esc(curAlloc.countsIn[s].title)}</div>` : ''}
+    ${all && all.length > 1 ? `<div class="tsec">⇄ También en: ${all.filter(x => x !== sec).map(x => esc(x.title)).join(' · ')}</div>` : ''}
     <p>${esc(i.desc || 'Sin descripción disponible.')}</p>
     <div class="tpre"><b>Prerrequisitos:</b> ${i.prereq ? exprHTML(i.expr, true) : 'Sin datos'}</div>`;
   return el;
