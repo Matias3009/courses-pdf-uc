@@ -8,7 +8,12 @@ la interpreta ("(A y B) o C", "X(c)" = correquisito), sigue recursivamente los
 prerrequisitos y genera un HTML interactivo con:
   - desplegable de Major/Track y de Minor (mapeados desde los PDFs),
   - desplegable de curso: ver qué necesitas para él o qué desbloquea,
-  - clic en un curso = marcarlo como aprobado (verde) -> se resaltan los disponibles.
+  - clic en un curso = marcarlo como aprobado (verde) -> se resaltan los disponibles,
+  - recuadros por área del plan (p. ej. "Ciencias básicas (mínimos) · 120 cr"),
+  - al pasar el mouse: nombre completo, créditos y descripción breve.
+
+Nombre completo y créditos salen de buscacursos.uc.cl; la descripción, del programa
+del curso en catalogo.uc.cl (view=programa).
 
 Uso:
   pip install requests beautifulsoup4            (pypdf solo si usas --pdf)
@@ -19,6 +24,7 @@ Uso:
   python uc_prereqs.py --pdf otro_major.pdf --pdf-name "Mi Major"   # programa desde un PDF
   python uc_prereqs.py --offline                 # usar solo la caché
   python uc_prereqs.py --refresh                 # volver a descargar todo
+  python uc_prereqs.py --no-info                 # no buscar nombres/créditos/descripciones
 """
 from __future__ import annotations
 
@@ -32,7 +38,7 @@ import webbrowser
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
-from programs import NAMES, PROGRAMS, program_courses
+from programs import CREDITS, NAMES, PROGRAMS, program_courses
 
 HERE = Path(__file__).resolve().parent
 CACHE_FILE = HERE / "prereq_cache.json"
@@ -45,6 +51,17 @@ HEADERS = {
     "Accept": "text/html,application/xhtml+xml",
     "Accept-Language": "es-CL,es;q=0.9",
 }
+INFO_FILE = HERE / "info_cache.json"
+PROGRAMA_URL = ("https://catalogo.uc.cl/index.php?tmpl=component&option=com_catalogo"
+                "&view=programa&sigla={}")
+BUSCACURSOS_URL = (
+    "https://buscacursos.uc.cl/?cxml_semestre={sem}&cxml_sigla={sigla}&cxml_nrc=&cxml_nombre="
+    "&cxml_categoria=TODOS&cxml_area_fg=TODOS&cxml_formato_cur=TODOS&cxml_profesor="
+    "&cxml_campus=TODOS&cxml_unidad_academica=TODOS&cxml_horario_tipo_busqueda=si_tenga"
+    "&cxml_horario_tipo_busqueda_actividad=TODOS&cxml_periodo=TODOS&cxml_escuela=TODOS"
+    "&cxml_nivel=TODOS")
+# Semestres a probar en orden (el curso puede no dictarse en el más reciente).
+SEMESTRES = ["2026-2", "2026-1", "2025-2", "2025-1"]
 SIGLA = r"[A-Z]{3}\d{3,4}[A-Z]?"
 SIGLA_RE = re.compile(rf"^{SIGLA}$")
 
@@ -223,6 +240,106 @@ class Catalog:
         return seen
 
 
+# =============================================================== nombre, créditos, descripción
+def parse_buscacursos(html: str, sigla: str):
+    """Fila de resultados de buscacursos -> {"name", "credits"} o None si no aparece."""
+    from bs4 import BeautifulSoup
+    soup = BeautifulSoup(html, "html.parser")
+    i_name, i_cred = 9, 12  # posiciones por defecto; se corrigen con la fila de encabezado
+    for tr in soup.find_all("tr"):
+        cells = [" ".join(td.get_text(" ").split()) for td in tr.find_all(["td", "th"], recursive=False)]
+        if "NRC" in cells and "Sigla" in cells and "Nombre" in cells:
+            i_name = cells.index("Nombre")
+            i_cred = next((i for i, c in enumerate(cells) if c.lower().startswith("créd")), i_cred)
+            continue
+        if len(cells) > max(i_name, i_cred) and cells[1] == sigla:
+            cred = re.sub(r"\D", "", cells[i_cred])
+            return {"name": cells[i_name], "credits": int(cred) if cred else None}
+    return None
+
+
+def parse_programa(html: str):
+    """Programa del curso (catalogo.uc.cl view=programa) -> descripción breve o None.
+    Toma el texto que sigue al título 'DESCRIPCIÓN' hasta el siguiente apartado."""
+    from bs4 import BeautifulSoup
+    soup = BeautifulSoup(html, "html.parser")
+    for t in soup(["script", "style"]):
+        t.decompose()
+    text = " ".join((soup.body or soup).get_text(" ").split())
+    m = re.search(r"DESCRIPCI[ÓO]N(?:\s+DEL\s+CURSO)?\s*:?\s*(.+?)(?=\s+(?:II|2)\s*[.)]?\s+[A-ZÁÉÍÓÚ]{4,}|"
+                  r"\s+RESULTADOS\s+DE\s+APRENDIZAJE|\s+OBJETIVOS|\s+CONTENIDOS|$)", text, re.I)
+    if not m:
+        return None
+    desc = m.group(1).strip(" .:-")
+    if len(desc) < 20:
+        return None
+    if len(desc) > 420:
+        cut = desc[:420]
+        desc = cut[:cut.rfind(". ") + 1] if ". " in cut[150:] else cut.rsplit(" ", 1)[0] + "…"
+    return desc
+
+
+class Info:
+    """Caché de nombre completo, créditos y descripción por sigla."""
+
+    def __init__(self, offline=False, refresh=False, workers=4):
+        self.offline, self.refresh, self.workers = offline, refresh, workers
+        self.data: dict[str, dict] = {}
+        if INFO_FILE.exists() and not refresh:
+            try:
+                self.data = json.loads(INFO_FILE.read_text(encoding="utf-8"))
+            except json.JSONDecodeError:
+                pass
+        self._local = threading.local()
+
+    def _session(self, browser=False):
+        import requests
+        key = "b" if browser else "p"
+        if not hasattr(self._local, key):
+            sess = requests.Session()
+            sess.headers.update(HEADERS if browser else {"User-Agent": "uc-prereqs/1.0"})
+            setattr(self._local, key, sess)
+        return getattr(self._local, key)
+
+    def _lookup(self, sigla):
+        out = {}
+        for sem in SEMESTRES:
+            try:
+                r = self._session().get(BUSCACURSOS_URL.format(sem=sem, sigla=sigla), timeout=20)
+                found = parse_buscacursos(r.text, sigla) if r.ok else None
+            except Exception:  # noqa: BLE001
+                found = None
+            if found:
+                out.update(found, sem=sem)
+                break
+        try:
+            r = self._session(browser=True).get(PROGRAMA_URL.format(sigla), timeout=20)
+            desc = parse_programa(r.text) if r.ok else None
+            if desc:
+                out["desc"] = desc
+        except Exception:  # noqa: BLE001
+            pass
+        out["checked"] = True
+        time.sleep(0.2)
+        return sigla, out
+
+    def fetch(self, siglas):
+        todo = [s for s in dict.fromkeys(siglas) if not self.data.get(s, {}).get("checked")]
+        if self.offline or not todo:
+            return
+        print(f"Buscando nombre/créditos/descripción de {len(todo)} cursos…", flush=True)
+        with ThreadPoolExecutor(self.workers) as ex:
+            for i, (s, out) in enumerate(ex.map(self._lookup, todo), 1):
+                self.data[s] = out
+                if i % 25 == 0:
+                    print(f"  {i}/{len(todo)}", flush=True)
+                    INFO_FILE.write_text(json.dumps(self.data, ensure_ascii=False, indent=1), encoding="utf-8")
+        INFO_FILE.write_text(json.dumps(self.data, ensure_ascii=False, indent=1), encoding="utf-8")
+        n_desc = sum(1 for s in todo if self.data[s].get("desc"))
+        n_name = sum(1 for s in todo if self.data[s].get("name"))
+        print(f"  nombres: {n_name}/{len(todo)} · descripciones: {n_desc}/{len(todo)}")
+
+
 # =============================================================== PDF -> programa
 def program_from_pdf(path, name):
     from pypdf import PdfReader
@@ -230,7 +347,7 @@ def program_from_pdf(path, name):
     siglas = list(dict.fromkeys(re.findall(rf"\b{SIGLA}\b", text)))
     siglas = [s for s in siglas if not s.startswith("VRA")]  # exámenes/requisitos de grado
     return {"name": name, "kind": "major",
-            "sections": [(f"Todos los cursos encontrados en {Path(path).name}", "req", siglas)]}
+            "sections": [(f"Todos los cursos encontrados en {Path(path).name}", "req", siglas, None)]}
 
 
 # =============================================================== árbol en terminal
@@ -293,21 +410,35 @@ def print_tree(cat: Catalog, root, prog: set | None = None):
 
 
 # =============================================================== HTML
-def build_html(cat: Catalog, programs: dict, out: Path):
+def build_html(cat: Catalog, programs: dict, out: Path, info: Info | None = None):
     courses = {}
-    for s, info in cat.data.items():
-        courses[s] = {k: info.get(k) for k in
-                      ("prereq", "expr", "relacion", "restricciones", "equivalencias", "error")
-                      if info.get(k) is not None}
+    extra = info.data if info else {}
+    for s in set(cat.data) | set(extra):
+        src = cat.data.get(s, {})
+        c = {k: src.get(k) for k in
+             ("prereq", "expr", "relacion", "restricciones", "equivalencias", "error")
+             if src.get(k) is not None}
+        e = extra.get(s, {})
+        name = e.get("name") or NAMES.get(s)
+        cred = e.get("credits") if e.get("credits") is not None else CREDITS.get(s)
+        if name:
+            c["name"] = name
+        if cred is not None:
+            c["credits"] = cred
+        if e.get("desc"):
+            c["desc"] = e["desc"]
+        courses[s] = c
     progs = {}
     for k, p in programs.items():
         progs[k] = {"name": p["name"], "kind": p["kind"],
                     "for": p.get("for"), "excluded": p.get("excluded"),
-                    "sections": [{"title": t, "kind": kind,
-                                  "items": [i if isinstance(i, list) else [i] for i in items]}
-                                 for t, kind, items in p["sections"]]}
+                    "sections": [{"title": sec[0], "kind": sec[1],
+                                  "items": [i if isinstance(i, list) else [i] for i in sec[2]],
+                                  "credits": sec[3] if len(sec) > 3 else None}
+                                 for sec in p["sections"]]}
     payload = json.dumps({"courses": courses, "names": NAMES, "programs": progs,
-                          "url": URL}, ensure_ascii=False)
+                          "url": URL, "bc_url": BUSCACURSOS_URL.format(sem=SEMESTRES[0], sigla="{}") + "#resultados"},
+                         ensure_ascii=False)
     template = (HERE / "template.html").read_text(encoding="utf-8")
     out.write_text(template.replace("/*__DATA__*/null", payload), encoding="utf-8")
     return out
@@ -328,6 +459,8 @@ def main():
     ap.add_argument("--out", default=str(HERE / "uc_prereqs.html"))
     ap.add_argument("--no-open", action="store_true", help="no abrir el navegador")
     ap.add_argument("--list", action="store_true", help="listar programas disponibles")
+    ap.add_argument("--no-info", action="store_true",
+                    help="no buscar nombre completo/créditos/descripción (buscacursos y programa)")
     args = ap.parse_args()
 
     programs = dict(PROGRAMS)
@@ -375,9 +508,11 @@ def main():
     cat.crawl(roots, args.depth)
     for s in args.extra:
         programs.setdefault("EXTRA", {"name": "Cursos extra (--extra)", "kind": "minor",
-                                      "sections": [("Extra", "req", [])]})
+                                      "sections": [("Extra", "req", [], None)]})
         programs["EXTRA"]["sections"][0][2].append(s.upper())
-    out = build_html(cat, programs, Path(args.out))
+    info = Info(offline=args.offline or args.no_info, refresh=args.refresh)
+    info.fetch(sorted(set(cat.data) | set(roots)))
+    out = build_html(cat, programs, Path(args.out), info)
     print(f"\n✔ {len(cat.data)} cursos en caché. HTML: {out}")
     if not args.no_open:
         webbrowser.open(out.resolve().as_uri())
