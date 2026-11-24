@@ -6,10 +6,11 @@ Plan de estudios extraídos de los PDFs:
 
 Formato:
   PROGRAMS[key] = {"name": str, "kind": "major"|"minor",
-                   "sections": [(titulo, "req"|"opt", [items])]}
+                   "sections": [(titulo, "req"|"opt", [items], creditos)]}
   Un item es una sigla ("MAT1203") o una lista de alternativas
   (["FIS1514", "ICE1514"]  ==  "FIS1514 o ICE1514").
   "req" = cursos mínimos/obligatorios, "opt" = listas de optativos.
+  creditos = créditos que exige esa área según el PDF (None = complementarios/reemplazo).
 """
 
 # ---------------------------------------------------------------- nombres
@@ -148,28 +149,37 @@ NAMES = {
     "ICT3103": "Economía de Transporte", "ICT3244": "Modelos Econométricos en Ingeniería",
 }
 
+# ---------------------------------------------------------------- créditos por curso (PDF)
+# Por defecto 10 cr. buscacursos.uc.cl, si responde, tiene prioridad.
+CREDITS = {s: 10 for s in NAMES}
+CREDITS.update({
+    "FIS0154": 0, "FIS0152": 0, "FIS0153": 0,
+    "IEE2183": 5, "IEE2473": 5, "IEE2273": 5, "IEE2683": 5, "IEE2573": 5,
+    "ING2031": 5, "DEM298": 5, "ICT3352": 5, "ICT3454": 5,
+})
+
 # ---------------------------------------------------------------- secciones compartidas
 PLAN_COMUN = [
     ("1.1 Ciencias básicas (mínimos)", "req", [
         "MAT1610", "QIM100E", "MAT1620", ["FIS1514", "ICE1514"], "FIS0154", "ICS1513",
         "IIC1103", ["FIS1523", "IIQ1003", "ICM1003", "IIQ103H"], "FIS0152", "EYP1113",
         ["FIS1533", "IEE1533"], "FIS0153", "ING2030",
-    ]),
-    ("1.1 Optativo Biológico", "opt", ["BIO110C", "BIO141C", "BIO135C", "BIO143M"]),
-    ("1.2 Formación General", "req", ["FIL2001"]),
-    ("1.3 Base general para Major", "req", ["MAT1203", "ING1004", "MAT1630", "MAT1640"]),
+    ], 120),
+    ("1.1 Optativo Biológico", "opt", ["BIO110C", "BIO141C", "BIO135C", "BIO143M"], 10),
+    ("1.2 Formación General (FIL2001 + Teológico + 60 cr electivos)", "req", ["FIL2001"], 80),
+    ("1.3 Base general para Major (mínimos)", "req", ["MAT1203", "ING1004", "MAT1630", "MAT1640"], 40),
     ("1.3 Optativo de Exploración de Major", "opt", [
         "AQH0000", "IBM1005", "ICC1001", "ICC2304", "ICE2006", ["ICE2623", "IMM2003"],
         "ICH1005", "ICH1104", "ICH2304", "ICM1002", ["ICS1113", "ICS113H"], "ICT1103",
         "IDI1015", "IEE1100", "IEE2103", "IEE2123", "IFI1001", "IIC1005", "IIQ1001",
         "IIQ2663", "IIQ2930", "IMM1003", "IMT1001", ["IRB1010", "IRB2001"],
-    ]),
+    ], 10),
 ]
 
 COMP_MAJOR = [
-    ("1.1 Optativo de Fundamentos (obligatorio para este Major)", "req", ["IIC1253"]),
+    ("1.1 Optativo de Fundamentos (obligatorio en este Major)", "req", ["IIC1253"], 10),
     ("2. Major — Mínimos", "req",
-     ["IIC2133", "IIC2143", "IIC2233", "IIC2413", "IIC2513", "IIC2531", "IIC2154"]),
+     ["IIC2133", "IIC2143", "IIC2233", "IIC2413", "IIC2513", "IIC2531", "IIC2154"], 70),
 ]
 
 ELEC_MAJOR = [
@@ -177,24 +187,26 @@ ELEC_MAJOR = [
         "ICE2006", ["ICE2623", "IMM2003"], "ICH1104", ["ICS1113", "ICS113H"], "IEE1133",
         "IEE2103", "IEE2123", "IIC1253", "IIQ2663", "ING1024", "QIM200", "ING2045",
         "ING2055", "IIQ2930", "ING2050", "IIC2233", "ETI188",
-    ]),
+    ], 10),
     ("2. Major — Mínimos", "req", [
         "IEE2103", "IEE2123", "IEE2513", "IEE2183", "IEE2473", "IEE2113", "IEE2913",
         "IEE2413", "IEE2713", "IEE2213", "IEE2613",
-    ]),
+    ], 100),
 ]
 
-# ---------------------------------------------------------------- majors
+COMPL = "Optativos Complementarios (si ya aprobaste un mínimo)"
+
+# ---------------------------------------------------------------- programas
 PROGRAMS = {
     "M296": {"name": "(M296) Computación y Sist. de Información — Track Computación Vs.02",
              "kind": "major",
              "sections": PLAN_COMUN + COMP_MAJOR + [
-                 ("2. Track Computación — Mínimos", "req", ["IIC2343", "IIC2333", "IIC2613"])]},
+                 ("2. Track Computación — Mínimos", "req", ["IIC2343", "IIC2333", "IIC2613"], 30)]},
     "M297": {"name": "(M297) Computación y Sist. de Información — Track Sistemas de Información Vs.02",
              "kind": "major",
              "sections": PLAN_COMUN + COMP_MAJOR + [
                  ("2. Track Sistemas de Información — Mínimos", "req",
-                  ["IIC2713", "IIC2733", "IIC2764"])]},
+                  ["IIC2713", "IIC2733", "IIC2764"], 30)]},
     "M233": {"name": "(M233) Ingeniería Eléctrica Vs.03", "kind": "major",
              "sections": PLAN_COMUN + ELEC_MAJOR},
     "PLAN": {"name": "Solo Plan Común de Licenciatura", "kind": "major", "sections": PLAN_COMUN},
@@ -203,127 +215,130 @@ PROGRAMS = {
     "N160": {"name": "(N160) Profundidad: Fundamentos Científicos y Tecnológicos de la Computación Vs.02",
              "kind": "minor", "for": ["M296", "M297"],
              "sections": [
-                 ("Mínimos", "req", ["IIC2213", "IIC2223", "IIC2283", "IIC2523"]),
-                 ("Optativos (10 cr)", "opt", ["IIC2333", "IIC2343", "IIC2613", "IIC3253"]),
-                 ("Requiere aprobación previa", "req", ["IIC2333"])]},
+                 ("Minor — Mínimos (requiere IIC2333 aprobado)", "req",
+                  ["IIC2213", "IIC2223", "IIC2283", "IIC2523"], 40),
+                 ("Minor — Optativos", "opt", ["IIC2333", "IIC2343", "IIC2613", "IIC3253"], 10)]},
     "N161": {"name": "(N161) Profundidad: Data Science y Analytics Vs.01",
              "kind": "minor", "for": ["M296", "M297"],
              "sections": [
-                 ("Mínimos", "req", ["IIC2433", "EYP2114", "IIC2026", "IIC2613"]),
-                 ("Optativos (10 cr)", "opt", [
+                 ("Minor — Mínimos", "req", ["IIC2433", "EYP2114", "IIC2026", "IIC2613"], 40),
+                 ("Minor — Optativos", "opt", [
                      "IIC3757", "IIC3695", "IIC3633", "IIC3413", "IIC3432", "IIC3423", "IIC3640",
-                     "IIC3692", "IIC3724", "EYP230I", "EYP280I", "ICS2123", "IIC2440"])]},
+                     "IIC3692", "IIC3724", "EYP230I", "EYP280I", "ICS2123", "IIC2440"], 10)]},
     "N343": {"name": "(N343) Profundidad: Ingeniería Eléctrica", "kind": "minor", "for": ["M233"],
              "sections": [
-                 ("Mínimos", "req", ["IEE2463"]),
-                 ("Optativos — elegir 10 cr", "opt", ["IEE2273", "IEE2683", "IEE2573", "IEE2690"]),
-                 ("Optativos — elegir 30 cr", "opt", [
-                     "IBM2012", "IBM2101", "IIC2233", "IIC2115", "IRB2001", "ICS2121"])]},
+                 ("Minor — Mínimos", "req", ["IEE2463"], 10),
+                 ("Minor — Optativos de laboratorio", "opt",
+                  ["IEE2273", "IEE2683", "IEE2573", "IEE2690"], 10),
+                 ("Minor — Optativos", "opt", [
+                     "IBM2012", "IBM2101", "IIC2233", "IIC2115", "IRB2001", "ICS2121"], 30)]},
 
     # ------------------------------------------------------------ minors de amplitud
     "N338": {"name": "(N338) Amplitud: Ingeniería Hidráulica y Ambiental Vs.01", "kind": "minor",
              "sections": [
-                 ("Mínimos", "req", ["ICH1104", "ICH2204", "ICH2114", "ICH2304", "ICH2314"]),
-                 ("Optativos Complementarios", "opt", [
-                     "ICM2223", "IIQ2363", "ICH2604", "ICH2613", "ICE2623", "GEO202"])]},
+                 ("Minor — Mínimos", "req", ["ICH1104", "ICH2204", "ICH2114", "ICH2304", "ICH2314"], 50),
+                 (COMPL, "opt", ["ICM2223", "IIQ2363", "ICH2604", "ICH2613", "ICE2623", "GEO202"], None)]},
     "N776": {"name": "(N776) Amplitud: Programación Vs.01", "kind": "minor", "excluded": ["M296", "M297"],
              "sections": [
-                 ("Mínimos", "req", ["IIC1253", "IIC2133", "IIC2143", "IIC2233", "IIC2413"]),
-                 ("Optativos Complementarios", "opt", [
-                     "IIC2343", "IIC2713", "IIC2513", "IIC2613", "IIC2333", "IIC2283"])]},
+                 ("Minor — Mínimos", "req", ["IIC1253", "IIC2133", "IIC2143", "IIC2233", "IIC2413"], 50),
+                 (COMPL, "opt", ["IIC2343", "IIC2713", "IIC2513", "IIC2613", "IIC2333", "IIC2283"], None)]},
     "N207": {"name": "(N207) Amplitud: Tecnologías de la Información Vs.01", "kind": "minor",
              "excluded": ["M296", "M297"],
              "sections": [
-                 ("Mínimos", "req", ["IIC2233", "IIC2413", "IIC2733", "IIC2764", "IIC2713"]),
-                 ("Optativos Complementarios", "opt", [
-                     "IIC2513", "IIC2433", "IIC2613", "IIC2985", "IIC2986", "IIC2987"])]},
+                 ("Minor — Mínimos", "req", ["IIC2233", "IIC2413", "IIC2733", "IIC2764", "IIC2713"], 50),
+                 (COMPL, "opt", ["IIC2513", "IIC2433", "IIC2613", "IIC2985", "IIC2986", "IIC2987"], None)]},
     "N346": {"name": "(N346) Amplitud: Ingeniería Estructural Vs.02", "kind": "minor",
              "sections": [
-                 ("Mínimos", "req", ["ICE2114", "ICE2313", "ICE2006", "ICC2105"]),
-                 ("Mínimos — elegir 10 cr", "opt", ["ICE2413", "ICE2533", "ICC2454"]),
-                 ("Optativos Complementarios", "opt", ["ICE2413", "ICE2533", "ICC2454", "ICE2703"])]},
+                 ("Minor — Mínimos", "req", ["ICE2114", "ICE2313", "ICE2006", "ICC2105"], 40),
+                 ("Minor — Mínimos (elegir uno)", "opt", ["ICE2413", "ICE2533", "ICC2454"], 10),
+                 (COMPL, "opt", ["ICE2413", "ICE2533", "ICC2454", "ICE2703"], None)]},
     "N345": {"name": "(N345) Amplitud: Ingeniería Geotécnica Vs.02", "kind": "minor",
              "sections": [
-                 ("Mínimos", "req", ["ICE2313", "ICE2604", "ICE2623", "ICE2006", "ICC2105"]),
-                 ("Optativos Complementarios", "opt", ["ICE2614", "ICE2630", "ICE3653"])]},
+                 ("Minor — Mínimos", "req", ["ICE2313", "ICE2604", "ICE2623", "ICE2006", "ICC2105"], 50),
+                 (COMPL, "opt", ["ICE2614", "ICE2630", "ICE3653"], None)]},
     "N202": {"name": "(N202) Amplitud: Geociencias — Área Recursos Geológicos Vs.01", "kind": "minor",
              "sections": [
-                 ("Mínimos", "req", ["ICE2623", "ICE2630", "ICE2633", "ICE2640"]),
-                 ("Elegir 10 cr", "opt", [
+                 ("Minor — Mínimos", "req", ["ICE2623", "ICE2630", "ICE2633"], 30),
+                 ("Área Recursos Geológicos — Mínimo", "req", ["ICE2640"], 10),
+                 ("Área Recursos Geológicos — Elegir", "opt", [
                      "ICH1104", "ICH2204", "ICH2214", "ICH2114", "IMM2033", "IMM2213", "IMM2013",
-                     "IMM2043", "ICE2643", "ICE2028"])]},
+                     "IMM2043", "ICE2643", "ICE2028"], 10)]},
     "N203": {"name": "(N203) Amplitud: Geociencias — Área Peligros Geológicos Vs.01", "kind": "minor",
              "sections": [
-                 ("Mínimos", "req", ["ICE2623", "ICE2630", "ICE2633", "ICE2029"]),
-                 ("Elegir 10 cr", "opt", ["GEO202", "GEO612", "GEO3086", "ICE2135", "ICE2643"])]},
+                 ("Minor — Mínimos", "req", ["ICE2623", "ICE2630", "ICE2633"], 30),
+                 ("Área Peligros Geológicos — Mínimo", "req", ["ICE2029"], 10),
+                 ("Área Peligros Geológicos — Elegir", "opt",
+                  ["GEO202", "GEO612", "GEO3086", "ICE2135", "ICE2643"], 10)]},
     "N678": {"name": "(N678) Amplitud: Ingeniería Mecánica Vs.01", "kind": "minor",
              "sections": [
-                 ("Mínimos", "req", [["ING1024", "ICM2403"], ["ICM2028", "ICE2313"], "ICM2022",
-                                     "ICH1104", "ICM2223"]),
-                 ("Optativos Complementarios", "opt", ["ICM2213", "ICM2503", "ICM2803", "ICM2985"])]},
+                 ("Minor — Mínimos", "req", [["ING1024", "ICM2403"], ["ICM2028", "ICE2313"], "ICM2022",
+                                             "ICH1104", "ICM2223"], 50),
+                 (COMPL, "opt", ["ICM2213", "ICM2503", "ICM2803", "ICM2985"], None)]},
     "N289": {"name": "(N289) Amplitud: Ingeniería Minera Vs.01", "kind": "minor",
              "sections": [
-                 ("Mínimos", "req", ["IMM2013", "IMM2023", "IMM2043", ["IMM2003", "ICE2623"]]),
-                 ("Optativos (10 cr)", "opt", [
-                     "IMM2033", "IMM2053", "IMM2073", "IMM2985", "IMM2986", "IMM2987"])]},
+                 ("Minor — Mínimos", "req", ["IMM2013", "IMM2023", "IMM2043", ["IMM2003", "ICE2623"]], 40),
+                 ("Minor — Optativos", "opt", [
+                     "IMM2033", "IMM2053", "IMM2073", "IMM2985", "IMM2986", "IMM2987"], 10)]},
     "N682": {"name": "(N682) Amplitud: Sistemas de Transporte Vs.01", "kind": "minor",
              "sections": [
-                 ("Mínimos", "req", ["ICS1113", "ICT2233", "ICT2904"]),
-                 ("Optativos (20 cr)", "opt", [
+                 ("Minor — Mínimos", "req", ["ICS1113", "ICT2233", "ICT2904"], 30),
+                 ("Minor — Optativos", "opt", [
                      "ICT2213", "ICT2223", "ICT2303", ["ICT2443", "ICT3443"], "ICT2985", "ICT2986",
-                     "ICT2987", "IIC2115", "IIC2233"])]},
+                     "ICT2987", "IIC2115", "IIC2233"], 20)]},
     "N200": {"name": "(N200) Amplitud: Ingeniería Industrial Vs.01", "kind": "minor",
              "sections": [
-                 ("Mínimos", "req", [["ICS1113", "ICS113H"], "ICS2123", "ICS2523", "ICS2613",
-                                     "ICS2813"]),
-                 ("Optativos Complementarios", "opt", [
-                     "ICS2121", "ICS2133", "ICS2562", ["IIC2233", "IIC2115"]])]},
+                 ("Minor — Mínimos", "req", [["ICS1113", "ICS113H"], "ICS2123", "ICS2523", "ICS2613",
+                                             "ICS2813"], 50),
+                 (COMPL, "opt", ["ICS2121", "ICS2133", "ICS2562", ["IIC2233", "IIC2115"]], None)]},
     "N201": {"name": "(N201) Amplitud: Logística y Transporte de Carga Vs.01", "kind": "minor",
              "sections": [
-                 ("Mínimos", "req", ["ICS1113", "ICS2123", "ICT2233", "ICT2904"]),
-                 ("Optativos (10 cr)", "opt", [
+                 ("Minor — Mínimos", "req", ["ICS1113", "ICS2123", "ICT2233", "ICT2904"], 40),
+                 ("Minor — Optativos", "opt", [
                      "ICS3223", ["ICS2133", "ICS3723"], ["ICT2443", "ICT3443"], "ICT2303", "ICT3463",
-                     "ICT3352", "ICT3454", "ICT3464", "ICT2985", "ICT2986", "ICT2987", "IIC2115"])]},
+                     "ICT3352", "ICT3454", "ICT3464", "ICT2985", "ICT2986", "ICT2987", "IIC2115"], 10)]},
     "N229": {"name": "(N229) Amplitud: Ingeniería Química Vs.02", "kind": "minor",
              "sections": [
-                 ("Mínimos", "req", [["QIM106A", "QIM106B"], "IIQ2003", "IIQ2043", "IIQ2133",
-                                     "QIM200"]),
-                 ("Optativos Complementarios", "opt", ["IIQ2013", "IIQ2023"])]},
+                 ("Minor — Mínimos", "req", [["QIM106A", "QIM106B"], "IIQ2003", "IIQ2043", "IIQ2133",
+                                             "QIM200"], 50),
+                 (COMPL, "opt", ["IIQ2013", "IIQ2023"], None)]},
     "N235": {"name": "(N235) Amplitud: Fundamentos de Ingeniería Biológica Vs.02", "kind": "minor",
              "sections": [
-                 ("Mínimos", "req", ["BIO141C", "BIO151E", "IIQ2663", "IIQ2693", "QIM200"]),
-                 ("Optativos Complementarios", "opt", [
-                     "BIO228C", "BIO252I", "IIQ2133", "IIQ2043", "IIQ2113", "IIQ2673"])]},
+                 ("Minor — Mínimos", "req", ["BIO141C", "BIO151E", "IIQ2663", "IIQ2693", "QIM200"], 50),
+                 (COMPL, "opt", ["BIO228C", "BIO252I", "IIQ2133", "IIQ2043", "IIQ2113", "IIQ2673"], None)]},
     "N205": {"name": "(N205) Amplitud: Matemáticas Aplicadas Vs.01", "kind": "minor",
              "sections": [
-                 ("Mínimos", "req", ["MAT2605", "MAT251I"]),
-                 ("Optativos (30 cr)", "opt", [
+                 ("Minor — Mínimos", "req", ["MAT2605", "MAT251I"], 20),
+                 ("Minor — Optativos", "opt", [
                      "EYP2114", "EYP280I", ["ICS1113", "ICS113H"], "IIC1253", "IMT2111", "IMT2112",
                      "IMT2113", "IMT2115", "MAT250I", "MAT2205", "MAT2305", "MAT2415", "MAT2545",
-                     "MAT255I", "MAT270I", "MAT253I", "MAT2615", "MAT2320"])]},
+                     "MAT255I", "MAT270I", "MAT253I", "MAT2615", "MAT2320"], 30)]},
     "N206": {"name": "(N206) Amplitud: Ingeniería Matemática Vs.01", "kind": "minor",
              "sections": [
-                 ("Mínimos", "req", ["MAT2605", "MAT251I", "IIC1253", "MAT253I", "EYP2114"]),
-                 ("Optativos Complementarios", "opt", [
+                 ("Minor — Mínimos", "req", ["MAT2605", "MAT251I", "IIC1253", "MAT253I", "EYP2114"], 50),
+                 (COMPL, "opt", [
                      "ICS113H", "IIC2233", "IMT2111", "IMT2112", "IMT2113", "IMT2115", "MAT255I",
-                     "MAT2615", "MAT2320"])]},
+                     "MAT2615", "MAT2320"], None)]},
     "N344": {"name": "(N344) Amplitud: Ingeniería Eléctrica Vs.02", "kind": "minor", "excluded": ["M233"],
-             "sections": [("Mínimos", "req", ["IEE2103", "IEE2123", "IEE2713", "IEE2613"])]},
+             "sections": [
+                 ("Minor — Mínimos", "req", ["IEE2103", "IEE2123", "IEE2713", "IEE2613"], 40),
+                 ("Minor — Cualquier curso IEE nivel 2000", "opt", [], 10)]},
     "N231": {"name": "(N231) Amplitud: Ingeniería de Construcción Vs.02", "kind": "minor",
              "sections": [
-                 ("Mínimos", "req", ["ICC2105", "ICC2204", "ICC2304"]),
-                 ("Optativos (20 cr)", "opt", ["ICE2006", "ICE2313", "ICE2604", "ICC2424", "ICC2514"]),
-                 ("Optativos Complementarios", "opt", [
-                     "ICC2454", "ICC2414", "ICC2354", "ICC3464", "ICC3470", "ICC2312", "ICC2913"])]},
+                 ("Minor — Mínimos", "req", ["ICC2105", "ICC2204", "ICC2304"], 30),
+                 ("Minor — Optativos", "opt", ["ICE2006", "ICE2313", "ICE2604", "ICC2424", "ICC2514"], 20),
+                 (COMPL, "opt", [
+                     "ICC2454", "ICC2414", "ICC2354", "ICC3464", "ICC3470", "ICC2312", "ICC2913"], None)]},
     "N242": {"name": "(N242) Amplitud: Innovación Tecnológica Vs.01", "kind": "minor",
-             "sections": [("Mínimos", "req", ["IDI2031", "ICS2031", "ICS2032", "ING2031", "DEM298"])]},
+             "sections": [
+                 ("Minor — Mínimos", "req", ["IDI2031", "ICS2031", "ICS2032", "ING2031", "DEM298"], 40),
+                 ("Minor — Optativos (Escuela de Ingeniería)", "opt", [], 10)]},
 }
 
 
 def program_courses(key):
     """Todas las siglas (aplanando alternativas) de un programa."""
     out = []
-    for _title, _kind, items in PROGRAMS[key]["sections"]:
+    for _title, _kind, items, *_ in PROGRAMS[key]["sections"]:
         for it in items:
             for s in (it if isinstance(it, list) else [it]):
                 if s not in out:
