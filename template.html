@@ -7,9 +7,9 @@
 <script src="https://unpkg.com/vis-network@9.1.9/standalone/umd/vis-network.min.js"></script>
 <style>
 :root{--bg:#f6f7f9;--panel:#fff;--text:#1d2330;--muted:#667085;--border:#d9dde5;
-  --req:#2f6fdb;--or:#b45309;--orbg:#fdf0dc;--and:#6d28d9;--andbg:#efe7fd;--band:rgba(47,111,219,.045);--bandline:#c3cde0;--bandok:rgba(31,157,85,.10);--bandokline:#7cc79b;--avail:#e8f0ff;--done:#1f9d55;--donebg:#dff5e8;--locked:#f1f2f5;--out:#fbfbfc;--focus:#e8590c}
+  --req:#2f6fdb;--or:#b45309;--orbg:#fdf0dc;--and:#6d28d9;--andbg:#efe7fd;--band:rgba(47,111,219,.045);--bandline:#c3cde0;--bandok:rgba(31,157,85,.10);--bandokline:#7cc79b;--bandhalf:rgba(234,179,8,.12);--bandhalfline:#e0b84a;--half:#a16207;--avail:#e8f0ff;--done:#1f9d55;--donebg:#dff5e8;--locked:#f1f2f5;--out:#fbfbfc;--focus:#e8590c}
 @media (prefers-color-scheme:dark){:root{--bg:#14161b;--panel:#1d2027;--text:#e6e8ee;--muted:#9aa3b2;--border:#343846;
-  --req:#6d9cff;--or:#f5a524;--orbg:#3a2a12;--and:#b394ff;--andbg:#2c2242;--band:rgba(109,156,255,.06);--bandline:#3a4560;--bandok:rgba(63,207,127,.10);--bandokline:#2f7a50;--avail:#22314f;--done:#3fcf7f;--donebg:#173826;--locked:#262a33;--out:#1a1c22;--focus:#ff8a3d}}
+  --req:#6d9cff;--or:#f5a524;--orbg:#3a2a12;--and:#b394ff;--andbg:#2c2242;--band:rgba(109,156,255,.06);--bandline:#3a4560;--bandok:rgba(63,207,127,.10);--bandokline:#2f7a50;--bandhalf:rgba(234,179,8,.10);--bandhalfline:#8a6d1c;--half:#e7c35a;--avail:#22314f;--done:#3fcf7f;--donebg:#173826;--locked:#262a33;--out:#1a1c22;--focus:#ff8a3d}}
 *{box-sizing:border-box}
 body{margin:0;font:14px/1.4 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;background:var(--bg);color:var(--text);
   display:grid;grid-template-columns:330px 1fr;height:100vh}
@@ -101,6 +101,9 @@ div.vis-tooltip{max-width:340px;white-space:normal;background:var(--panel);color
     <div><span style="background:var(--orbg);border-color:var(--or)"></span><b style="color:var(--or)">UNO DE</b>: basta con aprobar uno de los cursos que llegan (flechas naranjas)</div>
     <div><span style="background:var(--andbg);border-color:var(--and)"></span><b style="color:var(--and)">TODOS</b>: dentro de una opción, se necesitan todos (flechas moradas)</div>
     <div>Línea punteada = correquisito (se puede tomar a la vez)</div>
+    <div><b style="color:var(--req);font-size:15px">*</b> = el curso aparece en más de una sección: cumple el requisito en todas, sus créditos cuentan una vez</div>
+    <div><span style="background:var(--bandok);border-color:var(--bandokline)"></span>Área completa (requisito y créditos)</div>
+    <div><span style="background:var(--bandhalf);border-color:var(--bandhalfline)"></span>Requisito cumplido, pero faltan créditos: rellena con otro curso</div>
   </div>
 </aside>
 <main><div id="net"></div><div id="empty">Sin datos para mostrar.</div>
@@ -306,10 +309,11 @@ function bandInfo(){
 const OTHER = {title:'Prerrequisitos fuera del programa', credits:null, kind:'other', items:[]};
 const credOf = s => C[s]?.credits;
 const baseOf = id => String(id).split('@@')[0];
+const secApproved = sec => { let t = 0; for (const alts of sec.items) { const c = alts.find(x => done.has(x)); if (c) t += credOf(c) || 0; } return t; };
 const capCr = () => { const v = parseInt($('cap')?.value, 10); return v >= 10 ? v : 60; };
 
 // ---------- graph
-let network = null, bands = [], curAlloc = null;
+let network = null, bands = [], curAlloc = null, multiIds = new Set();
 function render(){
   updateLabels();
   curAlloc = progress($('major').value, $('minor').value);
@@ -330,7 +334,7 @@ function render(){
   }
   const col = {req:css('--req'), avail:css('--avail'), done:css('--done'), donebg:css('--donebg'),
                locked:css('--locked'), out:css('--out'), border:css('--border'), text:css('--text'),
-               muted:css('--muted'), focus:css('--focus'), or:css('--or'), orbg:css('--orbg'), and:css('--and'), andbg:css('--andbg'), panel:css('--panel'), band:css('--band'), bandline:css('--bandline'), bandok:css('--bandok'), bandokline:css('--bandokline')};
+               muted:css('--muted'), focus:css('--focus'), or:css('--or'), orbg:css('--orbg'), and:css('--and'), andbg:css('--andbg'), panel:css('--panel'), band:css('--band'), bandline:css('--bandline'), bandok:css('--bandok'), bandokline:css('--bandokline'), bandhalf:css('--bandhalf'), bandhalfline:css('--bandhalfline'), half:css('--half')};
 
   // depth = longest prerequisite chain. Catalog cycles (e.g. IIC2133 <-> IIC2154) are broken by
   // accepting mandatory ("y") links first and dropping optional ("o") links that would close a cycle.
@@ -385,6 +389,7 @@ function render(){
   }
 
   const nodes = [], edges = [];
+  multiIds = new Set();
   let j = 0, srcCourse;
   function addExpr(target, e, nest, groupCol, at){
     if (nest === undefined) { nest = 0; srcCourse = target; }
@@ -414,10 +419,9 @@ function render(){
     const isDone = done.has(s), avail = !isDone && sat(progPrune(info.expr, prog, doPrune));
     const name = nm(s), cr = credOf(s);
     const short = name.length > 50 ? name.slice(0, 48) + '…' : name;
-    if (nid !== s) edges.push({id:`e${edges.length}`, link:true, base:s, from:s, to:nid, dashes:[3,5], width:1.5,
-      color:{color:col.focus}, smooth:{type:'curvedCW', roundness:.15}, title:'mismo curso', hidden:true});
+    if (multi) multiIds.add(nid);
     nodes.push({
-      id:nid, base:s, ...pos[nid], label: `${multi ? '⇄ ' : ''}${s} · ${cr ?? '?'} cr` + (short ? `\n${short}` : ''),
+      id:nid, base:s, ...pos[nid], label: `${s} · ${cr ?? '?'} cr` + (short ? `\n${short}` : ''),
       shape:'box', margin:{top:7, bottom:7, left:9, right:9}, widthConstraint:{minimum:BOXW, maximum:BOXW},
       borderWidth: s === focus ? 3 : 2,
       shapeProperties:{borderDashes: inProg && req.has(s) ? false : [5,4], borderRadius:6},
@@ -434,7 +438,7 @@ function render(){
   $('stats').textContent = `${keep.size} cursos en el grafo · ${nDone}/${prog.size} del programa aprobados`
     + (full && !$('allEdges').checked ? ' · pasa el mouse por un curso para ver sus flechas' : '');
   const hideEdges = full && !$('allEdges').checked;
-  edges.forEach(e => e.hidden = e.link ? true : hideEdges);
+  edges.forEach(e => e.hidden = hideEdges);
   nodes.forEach(n => { if (n.owner) n.hidden = hideEdges; });
   const opts = {
     layout:{hierarchical:false, improvedLayout:false}, physics:false,
@@ -445,6 +449,11 @@ function render(){
   if (network) network.destroy();
   network = new vis.Network($('net'), data, opts);
   network.on('beforeDrawing', ctx => drawBands(ctx, col));
+  network.on('afterDrawing', ctx => { // blue * = this course also appears in other areas
+    ctx.save(); ctx.fillStyle = col.req; ctx.font = '700 24px system-ui, sans-serif'; ctx.textBaseline = 'top';
+    for (const id of multiIds) { const b = network.getBoundingBox(id); if (!b) continue;
+      ctx.globalAlpha = network.body.nodes[id]?.options.opacity ?? 1; ctx.fillText('*', b.right - 16, b.top + 1); }
+    ctx.restore(); });
   network.on('click', p => {
     const id = baseOf(p.nodes[0] || ''); if (!id || id.startsWith('__')) return;
     done.has(id) ? done.delete(id) : done.add(id); store.set('uc_done', [...done]);
@@ -467,7 +476,7 @@ function highlight(id){
   const {data, pr, keep, hideEdges, nodes, edges} = hl;
   if (!id) {
     data.nodes.update(nodes.map(n => ({id:n.id, opacity:1, hidden: n.owner ? hideEdges : false})));
-    data.edges.update(edges.map(e => ({id:e.id, hidden: e.link ? true : hideEdges})));
+    data.edges.update(edges.map(e => ({id:e.id, hidden:hideEdges})));
     return;
   }
   const chain = new Set([id]);
@@ -479,7 +488,7 @@ function highlight(id){
   data.nodes.update(nodes.map(n => ({id:n.id, opacity: chain.has(n.owner || n.base || n.id) ? 1 : 0.12,
     hidden: n.owner ? (hideEdges && !chain.has(n.owner)) : false})));
   data.edges.update(edges.map(e => ({id:e.id,
-    hidden: e.link ? e.base !== id : !(chain.has(e.owner) && (String(e.from).startsWith('__') || chain.has(e.from)))})));
+    hidden: !(chain.has(e.owner) && (String(e.from).startsWith('__') || chain.has(e.from)))})));
 }
 
 // ---------- first view: readable zoom anchored at the top-left instead of shrinking everything to fit
@@ -499,11 +508,18 @@ function drawBands(ctx, col){
     const ys = b.ids.filter(id => !id.startsWith('__')).map(id => P[id]?.y).filter(v => v !== undefined);
     if (!xs.length) continue;
     const sec = b.sec;
-    const doneCr = curAlloc?.secGot.has(sec) ? curAlloc.secGot.get(sec)
-      : b.ids.filter(id => !id.startsWith('__') && done.has(baseOf(id))).reduce((t, id) => t + (credOf(baseOf(id)) || 0), 0);
+    // A shared course fulfils the requirement in every area it belongs to, but its credits count
+    // only once toward the total (they go to the area where curAlloc placed them).
+    const allCr = sec.kind === 'other' ? 0 : secApproved(sec);
+    const counted = curAlloc?.secGot.has(sec) ? curAlloc.secGot.get(sec) : allCr;
+    const shared = sec.credits != null ? Math.max(0, Math.min(allCr, sec.credits) - counted) : 0;
+    const met = sec.credits != null && sec.credits > 0 && allCr >= sec.credits;
     const title = sec.title;
     const sub = sec.kind === 'other' ? 'no cuentan para el programa'
-      : (sec.credits != null ? `${sec.credits} cr requeridos` : 'solo como reemplazo') + ` · aprobados ${doneCr} cr` + (sec.credits > 0 && doneCr >= sec.credits ? '  ✓ completo' : '');
+      : (sec.credits != null ? `${sec.credits} cr requeridos` : 'solo como reemplazo') + ` · aprobados ${allCr} cr`
+        + (met && counted >= sec.credits ? '  ✓ completo'
+           : met ? `  ✓ requisito cumplido · faltan ${sec.credits - counted} cr: ${shared} cr ya cuentan en otra área, rellena con otro curso`
+           : shared ? ` (${shared} cr ya contados en otra área)` : '');
     ctx.save();
     ctx.font = '600 15px system-ui, sans-serif';
     const tw = ctx.measureText(title).width;
@@ -514,14 +530,14 @@ function drawBands(ctx, col){
     const bottom = Math.max(b.bottom, Math.max(...ys) + ROWH / 2 + 10);
     ctx.beginPath();
     ctx.roundRect ? ctx.roundRect(x0, top, x1 - x0, bottom - top, 12) : ctx.rect(x0, top, x1 - x0, bottom - top);
-    const complete = sec.credits != null && sec.credits > 0 && doneCr >= sec.credits;
-    ctx.fillStyle = complete ? col.bandok : col.band; ctx.fill();
-    ctx.lineWidth = complete ? 2 : 1.5; ctx.strokeStyle = complete ? col.bandokline : col.bandline;
+    const complete = met && counted >= sec.credits, half = met && !complete;
+    ctx.fillStyle = complete ? col.bandok : half ? col.bandhalf : col.band; ctx.fill();
+    ctx.lineWidth = complete || half ? 2 : 1.5; ctx.strokeStyle = complete ? col.bandokline : half ? col.bandhalfline : col.bandline;
     if (sec.kind !== 'req') ctx.setLineDash([7, 5]);
     ctx.stroke(); ctx.setLineDash([]);
     ctx.fillStyle = col.text; ctx.font = '600 15px system-ui, sans-serif'; ctx.textBaseline = 'top';
     ctx.fillText(title, x0 + 14, top + 9);
-    ctx.fillStyle = sec.credits != null && doneCr >= sec.credits ? col.done : col.muted;
+    ctx.fillStyle = complete ? col.done : half ? col.half : col.muted;
     ctx.font = '13px system-ui, sans-serif';
     ctx.fillText(sub, x0 + 14, top + 28);
     ctx.restore();
@@ -539,8 +555,8 @@ function tooltip(s, sec, all){
   el.className = 'tip';
   el.innerHTML = `<b>${esc(s)}</b> · ${esc(i.credits ?? '?')} cr<div class="tname">${esc(nm(s) || 'Nombre no disponible')}</div>
     ${sec && sec !== OTHER ? `<div class="tsec">${esc(sec.title)}</div>` : ''}
-    ${done.has(s) && curAlloc?.countsIn[s] ? `<div class="tsec" style="color:var(--done)">✓ Cuenta para: ${esc(curAlloc.countsIn[s].title)}</div>` : ''}
-    ${all && all.length > 1 ? `<div class="tsec">⇄ También en: ${all.filter(x => x !== sec).map(x => esc(x.title)).join(' · ')}</div>` : ''}
+    ${all && all.length > 1 ? `<div class="tsec"><b style="color:var(--req);font-size:15px">*</b> Aparece también en otras secciones:
+      ${all.filter(x => x !== sec).map(x => esc(x.title)).join(' · ')}.<br>Aprobarlo cumple el requisito en todas, pero sus créditos se cuentan una sola vez; el cupo de créditos de las otras secciones queda vacío y hay que rellenarlo con otro curso.${done.has(s) && curAlloc?.countsIn[s] ? `<br><b style="color:var(--done)">✓ Sus créditos cuentan en: ${esc(curAlloc.countsIn[s].title)}</b>` : ''}</div>` : ''}
     <p>${esc(i.desc || 'Sin descripción disponible.')}</p>
     <div class="tpre"><b>Prerrequisitos:</b> ${i.prereq ? exprHTML(i.expr, true) : 'Sin datos'}</div>`;
   return el;

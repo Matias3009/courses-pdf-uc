@@ -178,9 +178,14 @@ Windows) antes de ejecutarlo. En Windows usa `py` donde aquí dice `python3`.
 - **Clic** en un curso = marcarlo como aprobado (verde). Los que ya puedes tomar se ven en azul.
   Los aprobados se guardan en tu navegador.
 - **Doble clic** = ver solo el árbol de ese curso.
-- Un curso que pertenece a varias áreas aparece en cada una (marcado con ⇄). Las copias están
-  enlazadas: al aprobar una se aprueban todas, y al pasar el mouse se ven unidas con una línea
-  punteada. Sus créditos cuentan en una sola área (primero en los mínimos); el tooltip dice dónde.
+- Un curso que pertenece a varias secciones aparece en cada una, marcado con un **asterisco azul (*)**.
+  Al aprobar una copia se aprueban todas. Aprobarlo **cumple el requisito en todas las secciones**,
+  pero **sus créditos cuentan una sola vez** hacia el total (primero en los mínimos). El cupo de
+  créditos de las otras secciones queda vacío y hay que rellenarlo con otro curso (otro optativo,
+  exploratorio o electivo). Colores de los recuadros:
+  - **verde**: requisito y créditos completos;
+  - **amarillo**: requisito cumplido, pero faltan créditos (rellena con otro curso);
+  - **azul**: todavía no se cumple.
 - En el mapa completo las flechas están ocultas: **pasa el mouse** por un curso para ver qué
   necesita y qué desbloquea, con su nombre completo, créditos y una descripción breve.
 - Cómo leer las flechas:
