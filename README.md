@@ -175,12 +175,15 @@ Windows) antes de ejecutarlo. En Windows usa `py` donde aquí dice `python3`.
 - **Máx. créditos por semestre** (por defecto 60, una carga completa; el tope oficial es 65):
   los semestres restantes son el mayor entre *créditos que faltan ÷ ese máximo* y la cadena de
   prerrequisitos más larga que te falta (un correquisito no suma semestre).
-- **Clic** en un curso = marcarlo como aprobado (verde). Los que ya puedes tomar se ven en azul.
+- **Clic** en un curso = marcarlo como aprobado (verde) y fijar su información en el panel
+  (clic en el fondo del mapa para soltarla; clic derecho = fijar sin cambiar el aprobado). Los que ya puedes tomar se ven en azul.
   Los aprobados se guardan en tu navegador.
 - **Doble clic** = ver solo el árbol de ese curso.
 - Un curso que pertenece a varias secciones aparece en cada una, marcado con un **asterisco azul (*)**.
   Al aprobar una copia se aprueban todas. Aprobarlo **cumple el requisito en todas las secciones**,
-  pero **sus créditos cuentan una sola vez** hacia el total (primero en los mínimos). El cupo de
+  pero **sus créditos cuentan una sola vez** hacia el total, en **la sección que tú elijas**:
+  haz clic en el curso (o clic derecho para no cambiar si está aprobado), el panel lateral queda
+  fijado y ahí eliges *"Sus créditos cuentan en"*. Por defecto (*Automático*) van a los mínimos. El cupo de
   créditos de las otras secciones queda vacío y hay que rellenarlo con otro curso (otro optativo,
   exploratorio o electivo). Colores de los recuadros:
   - **verde**: requisito y créditos completos;

@@ -117,6 +117,7 @@ const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).
 const store = {get(k,d){try{return JSON.parse(localStorage.getItem(k))??d}catch(e){return d}},
                set(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}}};
 let done = new Set(store.get('uc_done', []));
+let assign = store.get('uc_assign', {}) || {};   // course -> section title chosen for its credits
 
 // ---------- selects
 for (const [k,p] of Object.entries(P)) {
@@ -162,11 +163,17 @@ function progress(mk, nk){
   const secs = [];
   for (const k of [mk, nk]) if (k && P[k]) P[k].sections.forEach(sec => secs.push({sec, prog:k}));
   const used = new Set(), choose = P[mk]?.choose_one || [];
-  const take = sec => { // greedily count approved, not-yet-used courses of this area up to its credits
-    let got = 0, picked = [];
+  // A course's credits count in one section only. If you chose a section for it, they go there;
+  // otherwise they go to the first area that needs them (minimum courses before electives).
+  const titles = new Set(secs.map(x => x.sec.title));
+  const forcedTo = c => assign[c] && titles.has(assign[c]) ? assign[c] : null;
+  const take = sec => {
+    let got = 0; const picked = [];
+    for (const alts of sec.items) for (const c of alts)
+      if (got < sec.credits && done.has(c) && !used.has(c) && forcedTo(c) === sec.title) { got += credOf(c) || 0; picked.push(c); }
     for (const alts of sec.items) for (const c of alts) {
-      if (got >= sec.credits) break;
-      if (done.has(c) && !used.has(c)) { got += credOf(c) || 0; picked.push(c); break; }
+      if (got >= sec.credits || alts.some(x => picked.includes(x))) break;
+      if (done.has(c) && !used.has(c) && !forcedTo(c)) { got += credOf(c) || 0; picked.push(c); break; }
     }
     return {got: Math.min(got, sec.credits), picked};
   };
@@ -313,7 +320,7 @@ const secApproved = sec => { let t = 0; for (const alts of sec.items) { const c 
 const capCr = () => { const v = parseInt($('cap')?.value, 10); return v >= 10 ? v : 60; };
 
 // ---------- graph
-let network = null, bands = [], curAlloc = null, multiIds = new Set();
+let network = null, bands = [], curAlloc = null, multiIds = new Set(), curSecsOf = {}, pinned = null;
 function render(){
   updateLabels();
   curAlloc = progress($('major').value, $('minor').value);
@@ -358,12 +365,14 @@ function render(){
   // A course listed in several areas appears in each of them. The copy in its main area keeps the
   // plain id (it carries the prerequisite arrows); the others are "SIGLA@@n" and stay linked to it.
   const members = new Map(), copies = {}, secsOf = {};
+  curSecsOf = {};
   const push = (sec, id) => { if (!members.has(sec)) members.set(sec, []); members.get(sec).push(id); };
   const uniqSecs = [...new Set(secs)];
   for (const s of keep) {
     const main = owner.get(s) || OTHER; push(main, s);
     const others = uniqSecs.filter(sec => sec !== main && sec.items.some(alts => alts.includes(s)));
     secsOf[s] = [main, ...others];
+    curSecsOf[s] = secsOf[s].filter(x => x !== OTHER);
     others.forEach((sec, n) => { const cid = `${s}@@${n + 1}`; (copies[s] ??= []).push(cid); push(sec, cid); });
   }
   const pos = {}, bandOf = {}, linkedAll = new Set();
@@ -455,15 +464,19 @@ function render(){
       ctx.globalAlpha = network.body.nodes[id]?.options.opacity ?? 1; ctx.fillText('*', b.right - 16, b.top + 1); }
     ctx.restore(); });
   network.on('click', p => {
-    const id = baseOf(p.nodes[0] || ''); if (!id || id.startsWith('__')) return;
+    const id = baseOf(p.nodes[0] || '');
+    if (!id) { pinned = null; return; }          // click on empty space: unpin the side panel
+    if (id.startsWith('__')) return;
     done.has(id) ? done.delete(id) : done.add(id); store.set('uc_done', [...done]);
-    const vp = network.getViewPosition(), sc = network.getScale();
-    render(); network.moveTo({position:vp, scale:sc}); showInfo(id);
+    pinned = id; rerender(); showInfo(id);
   });
+  network.on('oncontext', p => {                // right click: pin the panel without changing approval
+    p.event.preventDefault(); const id = baseOf(network.getNodeAt(p.pointer.DOM) || '');
+    if (id && !id.startsWith('__')) { pinned = id; showInfo(id); } });
   network.on('doubleClick', p => { const id = baseOf(p.nodes[0] || ''); if (!id || id.startsWith('__')) return;
     if (![...$('course').options].some(o => o.value === id)) $('course').add(new Option(`${id}  ${nm(id)}`, id));
     $('course').value = id; render(); });
-  network.on('hoverNode', p => { if (!p.node.startsWith('__')) { showInfo(baseOf(p.node)); highlight(baseOf(p.node)); } });
+  network.on('hoverNode', p => { if (!p.node.startsWith('__')) { if (!pinned) showInfo(baseOf(p.node)); highlight(baseOf(p.node)); } });
   network.on('blurNode', () => highlight(null));
   hl = {data, pr, keep, hideEdges, nodes, edges};
   if (firstView) { firstView = false; initialView(pos); }
@@ -562,12 +575,33 @@ function tooltip(s, sec, all){
   return el;
 }
 function esc(s){ return String(s ?? '').replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c])); }
+function rerender(){
+  const vp = network.getViewPosition(), sc = network.getScale();
+  render(); network.moveTo({position:vp, scale:sc});
+}
+function setAssign(s, title){
+  if (title) assign[s] = title; else delete assign[s];
+  store.set('uc_assign', assign); rerender(); showInfo(s);
+}
+function assignHTML(s){
+  const list = curSecsOf[s] || [];
+  if (list.length < 2) return '';
+  const auto = curAlloc?.countsIn[s];
+  const opts = [`<option value="">Automático${done.has(s) && auto && !assign[s] ? ` (ahora: ${esc(auto.title)})` : ''}</option>`]
+    .concat(list.map(x => `<option value="${esc(x.title)}" ${assign[s] === x.title ? 'selected' : ''}>${esc(x.title)}</option>`));
+  const full = assign[s] && done.has(s) && curAlloc && curAlloc.countsIn[s]?.title !== assign[s];
+  return `<dt><b style="color:var(--req)">*</b> Sus créditos cuentan en</dt><dd>
+    <select onchange="setAssign('${s}', this.value)" style="width:100%;margin-top:2px">${opts.join('')}</select>
+    <div style="color:var(--muted);font-size:11px;margin-top:3px">Cumple el requisito en todas sus secciones; los créditos se cuentan solo en la elegida.</div>
+    ${full ? '<div style="color:var(--half);font-size:12px;margin-top:3px">⚠ Esa sección ya tiene sus créditos completos, así que este curso no suma créditos.</div>' : ''}</dd>`;
+}
 function showInfo(s){
   const i = C[s] || {};
-  $('info').innerHTML = `<h2>${esc(s)} ${esc(nm(s))}</h2>
+  $('info').innerHTML = `${pinned === s ? '<div style="font-size:11px;color:var(--muted);margin-bottom:4px">📌 Fijado · clic en el fondo del mapa para soltar</div>' : ''}<h2>${esc(s)} ${esc(nm(s))}</h2>
    ${done.has(s) ? '<b style="color:var(--done)">✔ Aprobado</b>' : ''}
    <dl>
     <dt>Créditos</dt><dd>${esc(i.credits ?? '?')}</dd>
+    ${assignHTML(s)}
     ${i.desc ? `<dt>Descripción</dt><dd>${esc(i.desc)}</dd>` : ''}
     <dt>Prerrequisitos</dt><dd>${i.prereq ? exprHTML(i.expr, true) + `<div style="color:var(--muted);font-size:11px;margin-top:4px">Texto del catálogo: ${esc(i.prereq)}</div>` : esc(i.error ? '⚠ ' + i.error : 'Sin datos')}</dd>
     ${i.relacion && i.relacion !== 'No tiene' ? `<dt>Relación prerreq./restricciones</dt><dd>${esc(i.relacion)}</dd>` : ''}
@@ -576,7 +610,7 @@ function showInfo(s){
    </dl>
    <p style="margin:8px 0 0"><a href="${DATA.url.replace('{}', encodeURIComponent(s))}" target="_blank" rel="noopener">Catálogo ↗</a>
    · <a href="${DATA.bc_url.replace('{}', encodeURIComponent(s))}" target="_blank" rel="noopener">Buscacursos ↗</a>
-   · <small>clic = aprobar · doble clic = enfocar</small></p>`;
+   · <small>clic = aprobar y fijar · clic derecho = fijar · doble clic = enfocar</small></p>`;
 }
 
 $('major').onchange = $('minor').onchange = () => { firstView = true; fillCourses(); render(); };
