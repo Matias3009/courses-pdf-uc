@@ -1,0 +1,272 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Árbol de Prerrequisitos UC</title>
+<script src="https://unpkg.com/vis-network@9.1.9/standalone/umd/vis-network.min.js"></script>
+<style>
+:root{--bg:#f6f7f9;--panel:#fff;--text:#1d2330;--muted:#667085;--border:#d9dde5;
+  --req:#2f6fdb;--avail:#e8f0ff;--done:#1f9d55;--donebg:#dff5e8;--locked:#f1f2f5;--out:#fbfbfc;--focus:#e8590c}
+@media (prefers-color-scheme:dark){:root{--bg:#14161b;--panel:#1d2027;--text:#e6e8ee;--muted:#9aa3b2;--border:#343846;
+  --req:#6d9cff;--avail:#22314f;--done:#3fcf7f;--donebg:#173826;--locked:#262a33;--out:#1a1c22;--focus:#ff8a3d}}
+*{box-sizing:border-box}
+body{margin:0;font:14px/1.4 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;background:var(--bg);color:var(--text);
+  display:grid;grid-template-columns:330px 1fr;height:100vh}
+aside{background:var(--panel);border-right:1px solid var(--border);padding:16px;overflow:auto}
+h1{font-size:17px;margin:0 0 12px}
+label{display:block;font-size:12px;color:var(--muted);margin:12px 0 4px;font-weight:600;text-transform:uppercase;letter-spacing:.03em}
+select,input[type=search]{width:100%;padding:7px 8px;border:1px solid var(--border);border-radius:6px;background:var(--bg);color:var(--text);font:inherit}
+.row{display:flex;gap:6px;align-items:center;margin-top:8px;font-size:13px}
+.btns{display:flex;gap:6px;margin-top:12px;flex-wrap:wrap}
+button{padding:6px 10px;border:1px solid var(--border);background:var(--bg);color:var(--text);border-radius:6px;cursor:pointer;font:inherit;font-size:13px}
+button:hover{border-color:var(--req)}
+#info{margin-top:16px;padding:12px;border:1px solid var(--border);border-radius:8px;font-size:13px;min-height:80px}
+#info h2{font-size:15px;margin:0 0 6px}
+#info dt{color:var(--muted);font-size:11px;text-transform:uppercase;margin-top:8px}
+#info dd{margin:2px 0 0}
+#info a{color:var(--req)}
+.legend{margin-top:16px;font-size:12px;color:var(--muted)}
+.legend span{display:inline-block;width:12px;height:12px;border-radius:3px;vertical-align:middle;margin-right:4px;border:2px solid}
+#stats{font-size:12px;color:var(--muted);margin-top:10px}
+main{position:relative}
+#net{position:absolute;inset:0}
+#empty{position:absolute;inset:0;display:none;align-items:center;justify-content:center;color:var(--muted)}
+@media (max-width:760px){body{grid-template-columns:1fr;grid-template-rows:auto 70vh;height:auto}}
+</style>
+</head>
+<body>
+<aside>
+  <h1>Árbol de Prerrequisitos UC</h1>
+  <label for="major">Major / Track</label>
+  <select id="major"></select>
+  <label for="minor">Minor</label>
+  <select id="minor"></select>
+  <label for="course">Curso</label>
+  <input type="search" id="filter" placeholder="Filtrar (sigla o nombre)…">
+  <select id="course" size="8" style="margin-top:6px"></select>
+  <label for="mode">Vista</label>
+  <select id="mode">
+    <option value="back">¿Qué necesito para este curso? (prerrequisitos)</option>
+    <option value="fwd">¿Qué desbloquea este curso?</option>
+    <option value="both">Ambos</option>
+  </select>
+  <div class="row"><input type="checkbox" id="prune" checked><label for="prune" style="margin:0;text-transform:none;font-weight:400;font-size:13px;color:var(--text)">Ocultar alternativas "o" ajenas al programa</label></div>
+  <div class="row"><input type="checkbox" id="hideIso" checked><label for="hideIso" style="margin:0;text-transform:none;font-weight:400;font-size:13px;color:var(--text)">Ocultar cursos sin relaciones (mapa completo)</label></div>
+  <div class="btns">
+    <button id="clearDone">Borrar aprobados</button>
+    <button id="fit">Centrar</button>
+  </div>
+  <div id="stats"></div>
+  <div id="info">Clic en un curso: marcar/desmarcar como <b>aprobado</b>. Pasa el mouse para ver detalles.</div>
+  <div class="legend">
+    <div><span style="background:var(--donebg);border-color:var(--done)"></span>Aprobado</div>
+    <div><span style="background:var(--avail);border-color:var(--req)"></span>Disponible (cumples requisitos)</div>
+    <div><span style="background:var(--locked);border-color:var(--border)"></span>Bloqueado</div>
+    <div><span style="background:var(--out);border-color:var(--border);border-style:dashed"></span>Fuera del programa / optativo</div>
+    <div>◆ "o" = basta uno · ■ "y" = todos · línea punteada = correquisito</div>
+  </div>
+</aside>
+<main><div id="net"></div><div id="empty">Sin datos para mostrar.</div></main>
+
+<script>
+const DATA = /*__DATA__*/null;
+const C = DATA.courses, N = DATA.names, P = DATA.programs;
+const $ = id => document.getElementById(id);
+const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+const store = {get(k,d){try{return JSON.parse(localStorage.getItem(k))??d}catch(e){return d}},
+               set(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}}};
+let done = new Set(store.get('uc_done', []));
+
+// ---------- selects
+for (const [k,p] of Object.entries(P)) {
+  const o = new Option(p.name, k);
+  (p.kind === 'major' ? $('major') : $('minor')).add(o);
+}
+$('minor').add(new Option('— Ninguno —', ''), 0);
+$('major').value = store.get('uc_major', $('major').value) || $('major').value;
+$('minor').value = store.get('uc_minor', '') ?? '';
+
+function leaves(e){ if(!e) return []; if(e.c) return [e.c]; return e.args.flatMap(leaves); }
+function progInfo(){
+  const set = new Set(), req = new Set();
+  for (const k of [$('major').value, $('minor').value]) {
+    if (!k || !P[k]) continue;
+    for (const s of P[k].sections) for (const alts of s.items) for (const c of alts) {
+      set.add(c); if (s.kind === 'req' && alts.length === 1) req.add(c);
+    }
+  }
+  return {set, req};
+}
+function nm(s){ return N[s] || ''; }
+
+function fillCourses(){
+  const {set} = progInfo(), q = $('filter').value.trim().toLowerCase(), prev = $('course').value;
+  const sel = $('course'); sel.innerHTML = '';
+  sel.add(new Option('🗺  Mapa completo del programa', '*'));
+  [...set].sort().forEach(s => {
+    const t = `${s}  ${nm(s)}`;
+    if (!q || t.toLowerCase().includes(q)) sel.add(new Option(t, s));
+  });
+  if (q && /^[a-z]{3}\d{3,4}[a-z]?$/i.test(q) && !set.has(q.toUpperCase()) && C[q.toUpperCase()])
+    sel.add(new Option(`${q.toUpperCase()}  (fuera del programa)`, q.toUpperCase()));
+  sel.value = [...sel.options].some(o => o.value === prev) ? prev : '*';
+}
+
+// ---------- expression helpers
+function prune(e, keep, prog, doPrune){
+  if (!e) return null;
+  if (e.c) return keep.has(e.c) ? e : null;
+  let args = e.args.map(a => prune(a, keep, prog, doPrune)).filter(Boolean);
+  if (doPrune && e.op === 'or') {
+    const inside = args.filter(a => leaves(a).some(s => prog.has(s)));
+    if (inside.length) args = inside;
+  }
+  if (!args.length) return null;
+  return args.length === 1 ? args[0] : {op:e.op, args};
+}
+function progPrune(e, prog, doPrune){ // prune only "o" alternatives (no node-set filter)
+  if (!e || e.c || !doPrune) return e;
+  let args = e.args.map(a => progPrune(a, prog, doPrune));
+  if (e.op === 'or') { const inside = args.filter(a => leaves(a).some(s => prog.has(s))); if (inside.length) args = inside; }
+  return args.length === 1 ? args[0] : {op:e.op, args};
+}
+function sat(e){ if(!e) return true; if(e.c) return done.has(e.c);
+  return e.op === 'and' ? e.args.every(sat) : e.args.some(sat); }
+
+// ---------- node sets
+function backClosure(roots, prog, doPrune){
+  const seen = new Set(), st = [...roots];
+  while (st.length){ const s = st.pop(); if (seen.has(s)) continue; seen.add(s);
+    leaves(progPrune(C[s]?.expr, prog, doPrune)).forEach(x => st.push(x)); }
+  return seen;
+}
+function fwdClosure(root, prog, doPrune, universe){
+  const rev = {};
+  for (const s of universe) for (const p of leaves(progPrune(C[s]?.expr, prog, doPrune))) (rev[p] ??= []).push(s);
+  const seen = new Set(), st = [root];
+  while (st.length){ const s = st.pop(); if (seen.has(s)) continue; seen.add(s); (rev[s]||[]).forEach(x => st.push(x)); }
+  return seen;
+}
+
+// ---------- graph
+let network = null;
+function render(){
+  store.set('uc_major', $('major').value); store.set('uc_minor', $('minor').value);
+  const {set: prog, req} = progInfo(), doPrune = $('prune').checked;
+  const focus = $('course').value || '*', mode = $('mode').value;
+  let keep;
+  if (focus === '*') keep = backClosure(prog, prog, doPrune);
+  else {
+    keep = new Set();
+    if (mode !== 'fwd') backClosure([focus], prog, doPrune).forEach(s => keep.add(s));
+    if (mode !== 'back') {
+      const universe = new Set([...Object.keys(C)].filter(s => prog.has(s) || !doPrune));
+      universe.add(focus);
+      fwdClosure(focus, prog, doPrune, universe).forEach(s => keep.add(s));
+    }
+  }
+  const nodes = [], edges = [];
+  const col = {req:css('--req'), avail:css('--avail'), done:css('--done'), donebg:css('--donebg'),
+               locked:css('--locked'), out:css('--out'), border:css('--border'), text:css('--text'),
+               muted:css('--muted'), focus:css('--focus')};
+  let j = 0;
+  let addExpr;
+  // depth = longest prerequisite chain. Catalog cycles (e.g. IIC2133 <-> IIC2154) are broken by
+  // accepting mandatory ("y") links first and dropping optional ("o") links that would close a cycle.
+  const pr = {}; for (const s of keep) pr[s] = prune(C[s]?.expr, keep, prog, doPrune);
+  let hidden = 0;
+  if (focus === '*' && $('hideIso').checked) {
+    const linked = new Set();
+    for (const s of keep) for (const p of leaves(pr[s])) { linked.add(s); linked.add(p); }
+    for (const s of [...keep]) if (!linked.has(s)) { keep.delete(s); hidden++; }
+  }
+  const hardLeaves = e => !e ? [] : e.c ? [e.c] : e.op === 'and' ? e.args.flatMap(hardLeaves) : [];
+  const acc = {}; keep.forEach(s => acc[s] = new Set());
+  const reaches = (from, target) => { // is target a (transitive) prereq of from?
+    const seen = new Set(), st = [from];
+    while (st.length) { const x = st.pop(); if (x === target) return true; if (seen.has(x)) continue; seen.add(x); acc[x]?.forEach(y => st.push(y)); }
+    return false; };
+  for (const pass of [0, 1]) for (const s of keep) {
+    const ls = pass === 0 ? hardLeaves(pr[s]) : leaves(pr[s]);
+    for (const p of ls) if (!acc[s].has(p) && !reaches(p, s)) acc[s].add(p);
+  }
+  const depth = {};
+  const dep = s => depth[s] ?? (depth[s] = Math.max(0, ...[...acc[s]].map(p => dep(p) + 1)));
+  keep.forEach(dep);
+  const lvl = s => depth[s] * 3;
+  let srcCourse;
+  addExpr = function(target, e, tl){
+    if (tl === undefined) { tl = lvl(target); srcCourse = target; }
+    if (e.c) { const back = !acc[srcCourse]?.has(e.c);
+      edges.push({from:e.c, to:target, dashes:e.co || back, arrows:'to', title:back ? 'ciclo en el catálogo' : (e.co ? 'correquisito' : ''),
+                  color: back ? {color:col.border, opacity:.6} : undefined}); return; }
+    const id = `__${e.op}${j++}`;
+    nodes.push({id, label: e.op === 'or' ? 'o' : 'y', level: tl - 1, shape: e.op === 'or' ? 'diamond' : 'square', size: 8,
+      color:{background: col.locked, border: col.muted}, font:{size:12, color:col.muted, vadjust:-24},
+      title: e.op === 'or' ? 'Basta con uno' : 'Se requieren todos'});
+    edges.push({from:id, to:target, arrows:'to'});
+    e.args.forEach(a => addExpr(id, a, tl - 1));
+  };
+  for (const s of keep) {
+    const info = C[s] || {}, inProg = prog.has(s);
+    const e = pr[s];
+    const isDone = done.has(s), avail = !isDone && sat(progPrune(info.expr, prog, doPrune));
+    const name = nm(s);
+    nodes.push({
+      id:s, label: name ? `${s}\n${name.length > 26 ? name.slice(0,25)+'…' : name}` : s,
+      shape:'box', margin:8, level: lvl(s), borderWidth: s === focus ? 3 : 2,
+      shapeProperties:{borderDashes: inProg && req.has(s) ? false : [5,4], borderRadius:6},
+      color:{background: isDone ? col.donebg : avail ? col.avail : (inProg ? col.locked : col.out),
+             border: s === focus ? col.focus : isDone ? col.done : avail ? col.req : col.border},
+      font:{color: inProg ? col.text : col.muted, size:13, multi:false},
+      title: undefined
+    });
+    if (e) addExpr(s, e);
+  }
+  $('empty').style.display = nodes.length ? 'none' : 'flex';
+  const nDone = [...prog].filter(s => done.has(s)).length;
+  $('stats').textContent = `${keep.size} cursos en el grafo${hidden ? ` (+${hidden} sin relaciones ocultos)` : ''} · ${nDone}/${prog.size} del programa aprobados`;
+  const opts = {
+    layout:{hierarchical:{direction:'LR', levelSeparation:85, nodeSpacing:62, treeSpacing:70, parentCentralization:true}},
+    physics:false, interaction:{hover:true, tooltipDelay:120, navigationButtons:false, keyboard:true},
+    edges:{color:{color:col.muted, highlight:col.focus, hover:col.focus}, smooth:{type:'cubicBezier', forceDirection:'horizontal', roundness:.4}, width:1.2}
+  };
+  const data = {nodes:new vis.DataSet(nodes), edges:new vis.DataSet(edges)};
+  if (network) network.destroy();
+  network = new vis.Network($('net'), data, opts);
+  network.on('click', p => {
+    const id = p.nodes[0]; if (!id || id.startsWith('__')) return;
+    done.has(id) ? done.delete(id) : done.add(id); store.set('uc_done', [...done]);
+    const pos = network.getViewPosition(), sc = network.getScale();
+    render(); network.moveTo({position:pos, scale:sc}); showInfo(id);
+  });
+  network.on('doubleClick', p => { const id = p.nodes[0]; if (!id || id.startsWith('__')) return;
+    if (![...$('course').options].some(o => o.value === id)) $('course').add(new Option(`${id}  ${nm(id)}`, id));
+    $('course').value = id; render(); });
+  network.on('hoverNode', p => { if (!p.node.startsWith('__')) showInfo(p.node); });
+}
+function esc(s){ return String(s ?? '').replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c])); }
+function showInfo(s){
+  const i = C[s] || {};
+  $('info').innerHTML = `<h2>${esc(s)} ${esc(nm(s))}</h2>
+   ${done.has(s) ? '<b style="color:var(--done)">✔ Aprobado</b>' : ''}
+   <dl>
+    <dt>Prerrequisitos</dt><dd>${esc(i.prereq || (i.error ? '⚠ ' + i.error : 'Sin datos'))}</dd>
+    ${i.relacion && i.relacion !== 'No tiene' ? `<dt>Relación prerreq./restricciones</dt><dd>${esc(i.relacion)}</dd>` : ''}
+    ${i.restricciones && i.restricciones !== 'No tiene' ? `<dt>Restricciones</dt><dd>${esc(i.restricciones)}</dd>` : ''}
+    ${i.equivalencias && i.equivalencias !== 'No tiene' ? `<dt>Equivalencias</dt><dd>${esc(i.equivalencias)}</dd>` : ''}
+   </dl>
+   <p style="margin:8px 0 0"><a href="${DATA.url.replace('{}', encodeURIComponent(s))}" target="_blank" rel="noopener">Ver en catálogo ↗</a>
+   · <small>clic = aprobar · doble clic = enfocar</small></p>`;
+}
+
+$('major').onchange = $('minor').onchange = () => { fillCourses(); render(); };
+$('filter').oninput = fillCourses;
+$('course').onchange = $('mode').onchange = $('prune').onchange = $('hideIso').onchange = render;
+$('clearDone').onclick = () => { if (confirm('¿Borrar todos los cursos aprobados?')) { done.clear(); store.set('uc_done', []); render(); } };
+$('fit').onclick = () => network && network.fit();
+fillCourses(); render();
+</script>
+</body>
+</html>
