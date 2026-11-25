@@ -6,8 +6,8 @@ cursos necesitas para tomar otros, cuánto llevas aprobado y qué major/minor te
 
 Majors incluidos: Computación (Track Computación y Track Sistemas de Información),
 Ingeniería de Software, Eléctrica, Robótica, Diseño e Innovación, Biomédica (Track General
-y Track Premedicina), Ingeniería Matemática, además de sus minors de profundidad y todos los
-Minors de Amplitud.
+y Track Premedicina), Ingeniería Matemática, Sistemas de Transporte (Áreas 1 a 4), Química,
+Minera y Mecánica, además de sus minors de profundidad y todos los Minors de Amplitud.
 
 ## Úsalo sin instalar nada
 
@@ -191,6 +191,7 @@ Windows) antes de ejecutarlo. En Windows usa `py` donde aquí dice `python3`.
   (clic en el fondo del mapa para soltarla; clic derecho = fijar sin cambiar el aprobado). Los que ya puedes tomar se ven en azul.
   Los aprobados se guardan en tu navegador.
 - **Doble clic** = ver solo el árbol de ese curso.
+- Al ver un solo curso aparece abajo a la izquierda **← Ver todos los cursos** para volver al mapa completo.
 - Un curso que pertenece a varias secciones aparece en cada una, marcado con un **asterisco azul (*)**.
   Al aprobar una copia se aprueban todas. Aprobarlo **cumple el requisito en todas las secciones**,
   pero **sus créditos cuentan una sola vez** hacia el total, en **la sección que tú elijas**:

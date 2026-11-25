@@ -60,6 +60,10 @@ div.vis-tooltip{max-width:340px;white-space:normal;background:var(--panel);color
 #net{position:absolute;inset:0}
 #empty{position:absolute;inset:0;display:none;align-items:center;justify-content:center;color:var(--muted)}
 #topbar,#sheet,#scrim{display:none}
+#backBtn{position:absolute;left:16px;bottom:16px;z-index:4;display:none;padding:10px 16px;font-size:14px;font-weight:600;
+  background:var(--panel);color:var(--req);border:1.5px solid var(--req);border-radius:999px;box-shadow:0 4px 16px rgba(0,0,0,.18)}
+#backBtn:hover{background:var(--avail)}
+#backBtn.show{display:block}
 /* ---------- mobile: full-screen map, menu drawer, bottom sheet for course info */
 @media (max-width:760px){
   body{display:block;height:100dvh;overflow:hidden}
@@ -138,7 +142,7 @@ div.vis-tooltip{max-width:340px;white-space:normal;background:var(--panel);color
     <div><span style="background:var(--bandhalf);border-color:var(--bandhalfline)"></span>Requisito cumplido, pero faltan créditos: rellena con otro curso</div>
   </div>
 </aside>
-<main><div id="net"></div><div id="empty">Sin datos para mostrar.</div>
+<main><div id="net"></div><button id="backBtn" title="Volver al mapa completo">← Ver todos los cursos</button><div id="empty">Sin datos para mostrar.</div>
   <div id="cmp"><button id="cmpClose">Cerrar ✕</button><div id="cmpBody"></div></div></main>
 <div id="sheet"><div class="grab"></div><div id="sheetBody"></div></div>
 
@@ -324,10 +328,18 @@ function sat(e){ if(!e) return true; if(e.c) return done.has(e.c);
   return e.op === 'and' ? e.args.every(sat) : e.args.some(sat); }
 
 // ---------- node sets
-function backClosure(roots, prog, doPrune){
+function backClosure(roots, prog, doPrune, blocked){
   const seen = new Set(), st = [...roots];
-  while (st.length){ const s = st.pop(); if (seen.has(s)) continue; seen.add(s);
+  while (st.length){ const s = st.pop(); if (seen.has(s) || blocked?.has(s)) continue; seen.add(s);
     leaves(progPrune(C[s]?.expr, prog, doPrune)).forEach(x => st.push(x)); }
+  return seen;
+}
+const mandLeaves = e => !e ? [] : e.c ? [e.c] : e.op === 'and' ? e.args.flatMap(mandLeaves) : [];
+function mustAfter(root, prog, doPrune){
+  const rev = {};
+  for (const s of Object.keys(C)) for (const p of mandLeaves(progPrune(C[s]?.expr, prog, doPrune))) (rev[p] ??= []).push(s);
+  const seen = new Set(), st = [root];
+  while (st.length){ const s = st.pop(); if (seen.has(s)) continue; seen.add(s); (rev[s]||[]).forEach(x => st.push(x)); }
   return seen;
 }
 function fwdClosure(root, prog, doPrune, universe){
@@ -365,10 +377,16 @@ function render(){
   const focus = $('course').value || '*', mode = $('mode').value;
   let keep;
   const full = focus === '*';
+  $('backBtn').classList.toggle('show', !full);
   if (full) keep = $('outside').checked ? backClosure(prog, prog, doPrune) : new Set(prog);
   else {
     keep = new Set();
-    if (mode !== 'fwd') backClosure([focus], prog, doPrune).forEach(s => keep.add(s));
+    if (mode !== 'fwd') {
+      // courses that themselves need the focus course can't be its prerequisites (catalog loops, e.g. a capstone)
+      // (only mandatory links count here; an optional "o" alternative doesn't make a course come "after")
+      const after = mustAfter(focus, prog, doPrune); after.delete(focus);
+      backClosure([focus], prog, doPrune, after).forEach(s => keep.add(s));
+    }
     if (mode !== 'back') {
       const universe = new Set([...Object.keys(C)].filter(s => prog.has(s) || !doPrune));
       universe.add(focus);
@@ -548,7 +566,9 @@ function highlight(id){
 function initialView(pos){
   const pts = Object.values(pos); if (!pts.length) return;
   network.fit();
-  const minScale = isMobile() ? 0.55 : 0.8;
+  // single-course trees are small: show all of them; the full map keeps a readable zoom instead
+  const single = $('course').value && $('course').value !== '*';
+  const minScale = single ? (isMobile() ? 0.35 : 0.45) : (isMobile() ? 0.55 : 0.8);
   if (network.getScale() >= minScale) return;
   const el = $('net'), minX = Math.min(...pts.map(p => p.x)) - BOXW / 2 - 40, minY = Math.min(...pts.map(p => p.y) , ...bands.map(b => b.top)) - 24;
   network.moveTo({scale:minScale, position:{x: minX + el.clientWidth / 2 / minScale, y: minY + el.clientHeight / 2 / minScale}});
@@ -670,6 +690,7 @@ $('cap').value = store.get('uc_cap', 60);
 $('cap').onchange = () => { store.set('uc_cap', capCr()); render(); if ($('cmp').style.display === 'block') showCompare(); };
 $('cmpBtn').onclick = () => { document.body.classList.remove('menu'); showCompare(); };
 $('cmpBtn2').onclick = showCompare;
+$('backBtn').onclick = () => { $('course').value = '*'; firstView = true; render(); };
 $('menuBtn').onclick = () => document.body.classList.toggle('menu');
 $('scrim').onclick = () => document.body.classList.remove('menu');
 // close the drawer after choosing something, so the map is visible again

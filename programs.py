@@ -185,6 +185,29 @@ NAMES.update({
     "IMT2250": "Optimización para Ciencia de Datos", "IMT2260": "Teoría de Aprendizaje Automático",
 })
 
+NAMES.update({
+    # Transporte
+    "ICT2154": "Taller de Ingeniería de Transporte (Capstone)", "ELM230I": "Análisis de Regresión",
+    "ICT2953": "Tópicos de Econometría", "ICS2563": "Econometría Aplicada",
+    "ICS3143": "Programación Entera", "ICT3283": "Equilibrio en Redes de Transporte",
+    "IIQ3343": "Contaminación Atmosférica",
+    # Química
+    "IIQ2313": "Dinámica y Control de Procesos", "QIM202": "Bioquímica General",
+    "IIQ2243": "Diseño de Procesos Químicos (Capstone)", "QUO1112": "Laboratorio de Química Orgánica",
+    "IIQ2985": "Investigación o Proyecto", "IIQ2423": "Energía I",
+    "IIQ2303": "Matemática Aplicada a la Ingeniería de Procesos",
+    "IIQ2633": "Química y Análisis de Alimentos", "IIQ2623": "Microbiología e Higiene de Alimentos",
+    "IIQ2723": "Ingeniería de Alimentos", "IIQ2603": "Ciencia de los Alimentos",
+    # Mecánica
+    "ICM2026": "Proyecto de Diseño Mecánico (Capstone)", "ICM2132": "Astronáutica",
+    "ICM2313": "Diseño Gráfico", "ICM2316": "Introducción al Diseño Gráfico",
+    "ICM2981": "Trabajo Personal Dirigido", "ICM2986": "Investigación o Proyecto",
+    "ICM2987": "Investigación o Proyecto",
+    # Minera
+    "IMM2083": "Mecánica de Rocas para Minería", "IMM2583": "Taller de Planificación Minera (Capstone)",
+    "IMM2503": "Perforación y Tronadura", "IMM2103": "Gestión Ambiental", "IMM2521": "Tecnologías Mineras",
+})
+
 # ---------------------------------------------------------------- créditos por curso (PDF)
 # Por defecto 10 cr. buscacursos.uc.cl, si responde, tiene prioridad.
 CREDITS = {s: 10 for s in NAMES}
@@ -194,6 +217,7 @@ CREDITS.update({
     "ING2031": 5, "DEM298": 5, "ICT3352": 5, "ICT3454": 5,
     "IRB0600": 5, "IRB0601": 5, "BIO239M": 15, "MED110A": 5, "MED214A": 30, "MED109A": 5,
     "MED206A": 5, "MED111A": 5, "MED212A": 15, "MED213A": 15, "MED208A": 5,
+    "ICM2316": 5, "ICM2981": 5,
 })
 
 # ---------------------------------------------------------------- secciones compartidas
@@ -251,6 +275,21 @@ ROBOTICA_MINOR_OPT_COMUN = [
     "IEE2123", "IEE2103", "IEE2613", "IEE2463", "IIC2613", "IIC2685", "IIC2343", "IEE2714",
     "ICM2003", "ICM2813", "ING2050", "IRB0600", "IRB0601", ["ICS1113", "ICS113H"],
 ]
+
+TRANSPORTE_MIN = ("2. Major — Mínimos", "req", [
+    "ICS1113", "ICS2523", "ICT2904", "ICT2233", "ICT2223", "ICT2213", ["IIC2233", "IIC2115"], "ICT2154"], 80)
+INV_ICT = ["ICT2985", "ICT2986", "ICT2987"]
+TRANSPORTE_AREAS = {
+    "M180": ("Área 1: Externalidades e Impacto Ambiental (no vigente)",
+             ["ICH2304", ["IIQ2343", "IIQ3343"], "ICT2253"] + INV_ICT),
+    "M181": ("Área 2: Herramientas de Análisis y Modelación",
+             ["EYP2114", ["ELM230I", "EYP230I"], "ICT2953", "ICT3244", "ICT3463", "ICS2123",
+              ["ICS2562", "ICS2563"], ["ICS2133", "ICS3723"], "ICS3143"] + INV_ICT),
+    "M182": ("Área 3: Manejo de Bases de Datos",
+             ["IIC1253", "IIC2133", "IIC2413", "ICS2123", "IIC2433", "IIC2613"] + INV_ICT),
+    "M183": ("Área 4: Profundización en Ingeniería de Transporte",
+             [["ICT2443", "ICT3443"], "ICT3103", "ICT3283", "ICT2253", "ICS2123", "ICT2303"] + INV_ICT),
+}
 
 COMPL = "Optativos Complementarios (si ya aprobaste un mínimo)"
 
@@ -318,6 +357,27 @@ PROGRAMS = {
                  ("2. Major — Optativos (áreas 1, 2 y 3)", "opt", [
                      "IMT2115", "IMT2117", "IMT2310", "IMT2565", "IIC2283", "IMT2111", "IMT2112",
                      "IMT2113", "MAT2615", "IMT2118", "IMT2250", "IMT2260", "IIC2413", "IIC2613"], 20)]},
+    **{k: {"name": f"({k}) Ingeniería de Sistemas de Transporte — {t} Vs.02", "kind": "major",
+           "sections": plan_comun() + [FUND_OPT, TRANSPORTE_MIN, (f"2. {t} — Optativos", "opt", items, 20)]}
+       for k, (t, items) in TRANSPORTE_AREAS.items()},
+    "M258": {"name": "(M258) Ingeniería Química Vs.02", "kind": "major",
+             "sections": plan_comun() + [
+                 FUND_OPT,
+                 ("2. Major — Mínimos", "req", [
+                     "IIQ2313", "QIM200", "IIQ2043", "IIQ2133", "IIQ2003", "IIQ2013", "IIQ2023",
+                     "IIQ2113", ["QIM202", "BIO228C"], "IIQ2243"], 100)]},
+    "M192": {"name": "(M192) Ingeniería Minera Vs.02", "kind": "major",
+             "sections": plan_comun() + [
+                 FUND_OPT,
+                 ("2. Major — Mínimos", "req", [
+                     ["IMM2003", "ICE2623"], "IMM2023", "IMM2013", "IMM2033", "IMM2043", "IMM2073",
+                     ["ING1024", "ICC2105"], "IMM2083", "IMM2053", "IMM2583"], 100)]},
+    "M171": {"name": "(M171) Ingeniería Mecánica Vs.02", "kind": "major",
+             "sections": plan_comun() + [
+                 fund_req("ICE2006"),
+                 ("2. Major — Mínimos", "req", [
+                     "ICH1104", "ICM2022", ["ICM2028", "ICE2313"], "ICM2213", "ICM2223", "ICM2403",
+                     "ICM2503", "ICM2803", "ICM2813", "ICM2026"], 100)]},
     "PLAN": {"name": "Solo Plan Común de Licenciatura", "kind": "major", "sections": plan_comun() + [FUND_OPT]},
 
     # ------------------------------------------------------------ minors de profundidad
@@ -362,7 +422,8 @@ PROGRAMS = {
                  ("Minor — Optativos", "opt", ROBOTICA_MINOR_OPT_COMUN + [
                      "ICM2213", "ICM2223", "ICM2403", "ICM2982", "IEE2213", "IEE2413", "IEE2513",
                      "IEE2693", "IEE2313", "IIC1253", "IIC2133", "IIC2283"], 20)]},
-    "N290": {"name": "(N290) Profundidad: Articulación Ingeniería Civil Vs.02", "kind": "minor", "for": ["M206"],
+    "N290": {"name": "(N290) Profundidad: Articulación Ingeniería Civil Vs.02", "kind": "minor",
+             "for": ["M206", "M192", "M180", "M181", "M182", "M183"],
              "sections": [
                  ("Minor — 50 cr de áreas de Ing. Civil distintas a tu Major", "opt", [
                      "ICC2204", "ICE2006", "ICE2114", "ICE2313", "ICE2403", "ICC2454", "ICE2413",
@@ -384,6 +445,38 @@ PROGRAMS = {
              "sections": [
                  ("Minor — Mínimos", "req", ["IMT2565", "IMT2111", "IMT2260"], 30),
                  ("Minor — 20 cr de investigación o cursos aplicados (aprobados por el Comité)", "opt", [], 20)]},
+
+    "N192": {"name": "(N192/N193/N194) Profundidad: Articulación Ingeniería de Transporte Vs.01",
+             "kind": "minor", "for": ["M180", "M181", "M182", "M183"],
+             "sections": [
+                 ("Minor — Mínimos", "req", ["ICS2123", "ICS2613", "ICS2813"], 30),
+                 ("Minor — Optativos (de un área distinta a la de tu Major)", "opt", [
+                     "IIC1253", "IIC2115", "IIC2133", "IIC2413", "IIC2433", "IIC2613",
+                     ["ICT2443", "ICT3443"], "ICT3103", "ICT3283", "ICT2253", "ICT2303",
+                     "EYP2114", ["ELM230I", "EYP230I"], "ICT2953", "ICT3244", "ICT3463",
+                     ["ICS2562", "ICS2563"], ["ICS2133", "ICS3723"], "ICS3143"], 20)]},
+    "N228": {"name": "(N228) Profundidad: Ingeniería de Procesos Vs.02", "kind": "minor", "for": ["M258"],
+             "sections": [
+                 ("Minor — Mínimos", "req", ["QIM106B", "QUO1112", "IIQ2363"], 30),
+                 ("Minor — Optativos", "opt", ["IIQ2985", "IIQ2673", "IIQ2423", "IIQ2303"], 20)]},
+    "N226": {"name": "(N226) Profundidad: Ingeniería de Alimentos Vs.01", "kind": "minor", "for": ["M258"],
+             "sections": [
+                 ("Minor — Mínimos", "req", ["IIQ2633", "IIQ2623", "IIQ2723", "IIQ2603"], 40),
+                 ("Minor — Optativos", "opt", ["IIQ2930", "IIQ2985"], 10)]},
+    "N291": {"name": "(N291) Profundidad: Mecatrónica Vs.02", "kind": "minor", "for": ["M171"],
+             "sections": [
+                 ("Minor — Mínimos", "req", ["ICM2003"], 10),
+                 ("Minor — Área 1: Programación", "opt", ["IIC2233"], 10),
+                 ("Minor — Área 2: Procesamiento de Señales", "opt", ["IEE2123", "IEE2103", "IEE2713"], 10),
+                 ("Minor — Área 3: Aplicaciones Mecatrónicas", "opt", ["ICM2132", "ICM2982", "IEE2213", "IEE2413"], 10),
+                 ("Minor — Área 4: Hands On", "opt", [
+                     "ICM2313", "ICM2316", "ICM2981", "ICM2985", "ICM2986", "ICM2987", "IIC2685",
+                     "IEE2183", "IEE2273"], 10)]},
+    "N288": {"name": "(N288) Profundidad: Gestión y Operaciones Mineras Vs.01 (no vigente)", "kind": "minor",
+             "for": ["M192"],
+             "sections": [
+                 ("Minor — Cursos (50 cr)", "opt", [
+                     "IMM2503", "IMM2103", "IMM2213", "ICE2640", "IMM2521", ["IMM2985", "IMM2986", "IMM2987"]], 50)]},
 
     # ------------------------------------------------------------ minors de amplitud
     "N338": {"name": "(N338) Amplitud: Ingeniería Hidráulica y Ambiental Vs.01", "kind": "minor",
@@ -421,17 +514,17 @@ PROGRAMS = {
                  ("Área Peligros Geológicos — Mínimo", "req", ["ICE2029"], 10),
                  ("Área Peligros Geológicos — Elegir", "opt",
                   ["GEO202", "GEO612", "GEO3086", "ICE2135", "ICE2643"], 10)]},
-    "N678": {"name": "(N678) Amplitud: Ingeniería Mecánica Vs.01", "kind": "minor",
+    "N678": {"name": "(N678) Amplitud: Ingeniería Mecánica Vs.01", "kind": "minor", "excluded": ["M171"],
              "sections": [
                  ("Minor — Mínimos", "req", [["ING1024", "ICM2403"], ["ICM2028", "ICE2313"], "ICM2022",
                                              "ICH1104", "ICM2223"], 50),
                  (COMPL, "opt", ["ICM2213", "ICM2503", "ICM2803", "ICM2985"], None)]},
-    "N289": {"name": "(N289) Amplitud: Ingeniería Minera Vs.01", "kind": "minor",
+    "N289": {"name": "(N289) Amplitud: Ingeniería Minera Vs.01", "kind": "minor", "excluded": ["M192"],
              "sections": [
                  ("Minor — Mínimos", "req", ["IMM2013", "IMM2023", "IMM2043", ["IMM2003", "ICE2623"]], 40),
                  ("Minor — Optativos", "opt", [
                      "IMM2033", "IMM2053", "IMM2073", "IMM2985", "IMM2986", "IMM2987"], 10)]},
-    "N682": {"name": "(N682) Amplitud: Sistemas de Transporte Vs.01", "kind": "minor",
+    "N682": {"name": "(N682) Amplitud: Sistemas de Transporte Vs.01", "kind": "minor", "excluded": ["M180", "M181", "M182", "M183"],
              "sections": [
                  ("Minor — Mínimos", "req", ["ICS1113", "ICT2233", "ICT2904"], 30),
                  ("Minor — Optativos", "opt", [
@@ -442,13 +535,13 @@ PROGRAMS = {
                  ("Minor — Mínimos", "req", [["ICS1113", "ICS113H"], "ICS2123", "ICS2523", "ICS2613",
                                              "ICS2813"], 50),
                  (COMPL, "opt", ["ICS2121", "ICS2133", "ICS2562", ["IIC2233", "IIC2115"]], None)]},
-    "N201": {"name": "(N201) Amplitud: Logística y Transporte de Carga Vs.01", "kind": "minor",
+    "N201": {"name": "(N201) Amplitud: Logística y Transporte de Carga Vs.01", "kind": "minor", "excluded": ["M180", "M181", "M182", "M183"],
              "sections": [
                  ("Minor — Mínimos", "req", ["ICS1113", "ICS2123", "ICT2233", "ICT2904"], 40),
                  ("Minor — Optativos", "opt", [
                      "ICS3223", ["ICS2133", "ICS3723"], ["ICT2443", "ICT3443"], "ICT2303", "ICT3463",
                      "ICT3352", "ICT3454", "ICT3464", "ICT2985", "ICT2986", "ICT2987", "IIC2115"], 10)]},
-    "N229": {"name": "(N229) Amplitud: Ingeniería Química Vs.02", "kind": "minor",
+    "N229": {"name": "(N229) Amplitud: Ingeniería Química Vs.02", "kind": "minor", "excluded": ["M258"],
              "sections": [
                  ("Minor — Mínimos", "req", [["QIM106A", "QIM106B"], "IIQ2003", "IIQ2043", "IIQ2133",
                                              "QIM200"], 50),
